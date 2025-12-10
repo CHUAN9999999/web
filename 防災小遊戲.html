@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>地震防災小英雄 - 四年甲班</title>
+    <!-- Tailwind CSS for UI -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&family=Noto+Sans+TC:wght@400;700&display=swap');
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #2C3E50;
+            font-family: 'Fredoka', 'Noto Sans TC', sans-serif;
+            touch-action: none;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background-color: #Fdf2e9;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        canvas {
+            background-color: #fceadc;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+
+        /* Virtual Joystick UI */
+        .controls-layer {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            height: 150px;
+            pointer-events: none;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 40px;
+            box-sizing: border-box;
+            z-index: 20;
+        }
+
+        .joystick-zone {
+            width: 120px;
+            height: 120px;
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 50%;
+            pointer-events: auto;
+            position: relative;
+            border: 2px solid rgba(255,255,255,0.3);
+        }
+
+        .joystick-knob {
+            width: 50px;
+            height: 50px;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+            position: absolute;
+            top: 35px;
+            left: 35px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            transition: transform 0.1s;
+        }
+
+        .action-btn {
+            width: 80px;
+            height: 80px;
+            background-color: #FF6B6B;
+            border-radius: 50%;
+            pointer-events: auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-weight: bold;
+            font-size: 1.2rem;
+            border: 4px solid white;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            transition: background-color 0.2s, transform 0.1s;
+        }
+        
+        .action-btn.search-mode {
+            background-color: #F1C40F; /* Yellow for search */
+            animation: pulse-btn 1s infinite;
+        }
+        
+        @keyframes pulse-btn {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        .action-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 50;
+        }
+
+        .modal-box {
+            position: relative;
+            background: white;
+            padding: 2rem;
+            border-radius: 1rem;
+            max-width: 90%;
+            width: 500px;
+            text-align: center;
+            border: 6px solid #4ECDC4;
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes popIn {
+            from { transform: scale(0.8); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        .mic-btn {
+            width: 60px; height: 60px;
+            border-radius: 50%;
+            background: #f1f2f6;
+            display: flex; align-items: center; justify-content: center;
+            margin: 10px auto;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 2px solid #ccc;
+        }
+        .mic-btn.listening {
+            background: #ff7675;
+            border-color: #d63031;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(255, 118, 117, 0.7); }
+            70% { box-shadow: 0 0 0 15px rgba(255, 118, 117, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 118, 117, 0); }
+        }
+
+        .shake {
+            animation: shake 0.5s infinite;
+        }
+        @keyframes shake {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            10% { transform: translate(-1px, -2px) rotate(-1deg); }
+            20% { transform: translate(-3px, 0px) rotate(1deg); }
+            30% { transform: translate(3px, 2px) rotate(0deg); }
+            40% { transform: translate(1px, -1px) rotate(1deg); }
+            50% { transform: translate(-1px, 2px) rotate(-1deg); }
+            60% { transform: translate(-3px, 1px) rotate(0deg); }
+            70% { transform: translate(3px, 1px) rotate(-1deg); }
+            80% { transform: translate(-1px, -1px) rotate(1deg); }
+            90% { transform: translate(1px, 2px) rotate(0deg); }
+            100% { transform: translate(1px, -2px) rotate(-1deg); }
+        }
+        
+        /* Hint Modal Specifics */
+        .hint-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            animation: bounce 2s infinite;
+        }
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% {transform: translateY(0);}
+            40% {transform: translateY(-20px);}
+            60% {transform: translateY(-10px);}
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+
+        <!-- START SCREEN -->
+        <div id="start-screen" class="absolute inset-0 bg-yellow-100 flex flex-col justify-center items-center z-40">
+            <h1 class="text-4xl md:text-5xl font-extrabold text-green-600 mb-4 text-center">地震防災小英雄<br><span class="text-2xl text-green-700">四年甲班</span></h1>
+            <p class="text-xl text-gray-600 mb-8">Unit 4: In, On, Under & Safety</p>
+            <div class="bg-white p-6 rounded-lg shadow-lg max-w-md text-center">
+                <p class="mb-4 text-lg">你好！你是四年甲班的學生。<br>同學都變成昆蟲了！而且文具都不見了？</p>
+                <ul class="text-left text-gray-700 mb-6 space-y-2 text-sm md:text-base">
+                    <li>🔍 <b>步驟 1:</b> 靠近桌椅，尋找<b>放大鏡</b>並點擊，找出藏起來的文具。</li>
+                    <li>🗣️ <b>步驟 2:</b> 知道位置後，去找昆蟲同學回答問題。</li>
+                    <li>⚠️ <b>步驟 3:</b> 地震發生時，保護自己！</li>
+                </ul>
+                <button onclick="game.showTutorial()" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-8 rounded-full text-xl transition transform hover:scale-105 shadow-md">
+                    開始遊戲
+                </button>
+            </div>
+        </div>
+
+        <!-- TUTORIAL SCREEN -->
+        <div id="tutorial-screen" class="absolute inset-0 bg-black bg-opacity-80 hidden flex-col justify-center items-center z-40 text-white">
+            <h2 class="text-3xl font-bold mb-8 text-yellow-300">遊戲操作說明</h2>
+            <div class="flex flex-col md:flex-row gap-12 items-center">
+                <div class="text-center">
+                    <div class="w-24 h-24 rounded-full border-4 border-white mx-auto mb-4 flex justify-center items-center bg-gray-800">
+                        <div class="w-12 h-12 bg-white rounded-full"></div>
+                    </div>
+                    <p class="text-xl">左手：移動角色</p>
+                </div>
+                <div class="text-center">
+                    <div class="w-24 h-24 rounded-full bg-red-500 border-4 border-white mx-auto mb-4 flex justify-center items-center font-bold text-3xl">Talk</div>
+                    <p class="text-xl">右手：對話 / 調查(🔍)</p>
+                </div>
+            </div>
+            <button onclick="game.start()" class="mt-12 bg-yellow-400 text-black font-bold py-3 px-10 rounded-full text-xl">
+                出發！
+            </button>
+        </div>
+
+        <!-- HUD -->
+        <div id="hud" class="absolute top-4 left-4 right-4 flex justify-between pointer-events-none hidden z-10">
+            <div class="bg-white px-4 py-2 rounded-lg border-2 border-blue-400 shadow">
+                <span class="font-bold text-blue-600">任務:</span> <span id="mission-text">尋找物品 & 練習對話</span>
+            </div>
+            <div class="bg-white px-4 py-2 rounded-lg border-2 border-yellow-400 shadow">
+                <span class="font-bold text-yellow-600">進度:</span> <span id="progress-text">0/6</span>
+            </div>
+        </div>
+
+        <!-- CONTROLS -->
+        <div id="controls" class="controls-layer hidden">
+            <div id="joystick" class="joystick-zone">
+                <div id="knob" class="joystick-knob"></div>
+            </div>
+            <div id="action-btn" class="action-btn" onmousedown="input.action=true" onmouseup="input.action=false" ontouchstart="input.action=true" ontouchend="input.action=false">
+                Talk
+            </div>
+        </div>
+
+        <!-- DIALOG MODAL -->
+        <div id="dialog-modal" class="modal-overlay">
+            <div class="modal-box">
+                <button onclick="dialogSystem.close()" class="absolute top-4 right-4 text-gray-400 hover:text-red-500 font-bold text-xl px-2 py-1 border border-gray-200 rounded">Back ✕</button>
+                <div id="npc-avatar" class="w-20 h-20 bg-green-100 rounded-full mx-auto mb-4 flex items-center justify-center text-4xl border-2 border-green-300">🦗</div>
+                <h3 id="dialog-speaker" class="text-xl font-bold text-gray-800 mb-2">Insect Classmate</h3>
+                <p id="dialog-text" class="text-lg text-gray-600 mb-6 font-medium">Question goes here...</p>
+                
+                <div id="input-area" class="space-y-4">
+                    <div id="voice-btn" class="mic-btn" onclick="dialogSystem.toggleListening()">🎤</div>
+                    <p id="listening-status" class="text-sm text-gray-500">點擊麥克風說話 或 輸入文字</p>
+                    <input type="text" id="text-input" placeholder="Ex: It is on the desk." class="w-full border-2 border-gray-300 rounded p-2 text-center text-lg focus:border-blue-500 outline-none">
+                    <div class="flex gap-2">
+                        <button onclick="dialogSystem.close()" class="flex-1 bg-gray-400 text-white font-bold py-2 rounded hover:bg-gray-500">再確認一下</button>
+                        <button onclick="dialogSystem.submitAnswer()" class="flex-2 w-2/3 bg-blue-500 text-white font-bold py-2 rounded hover:bg-blue-600">送出答案</button>
+                    </div>
+                </div>
+                <button id="continue-btn" onclick="dialogSystem.close()" class="hidden w-full bg-green-500 text-white font-bold py-2 rounded hover:bg-green-600 mt-4">繼續</button>
+            </div>
+        </div>
+
+        <!-- INVESTIGATE MODAL -->
+        <div id="investigate-modal" class="modal-overlay">
+            <div class="modal-box bg-yellow-50 border-yellow-400">
+                <div class="hint-icon">🔍</div>
+                <h3 class="text-2xl font-bold text-yellow-700 mb-2">You found a <span id="found-item-name" class="text-red-500">Book</span>!</h3>
+                <p class="text-xl text-gray-800 mb-6 font-medium">
+                    "It is <span id="found-prep" class="font-bold text-blue-600">on</span> the <span id="found-obj" class="font-bold text-blue-600">desk</span>."
+                </p>
+                <button onclick="document.getElementById('investigate-modal').style.display='none'" class="bg-yellow-500 text-white font-bold py-3 px-10 rounded-full text-xl hover:bg-yellow-600 shadow">
+                    知道了！
+                </button>
+            </div>
+        </div>
+
+        <!-- WIN SCREEN -->
+        <div id="win-screen" class="modal-overlay z-50">
+            <div class="modal-box border-yellow-400 bg-yellow-50">
+                <div class="text-6xl mb-4">🏆</div>
+                <h2 id="win-title" class="text-3xl font-extrabold text-yellow-600 mb-4">太棒了！</h2>
+                <p class="text-gray-700 mb-8 text-lg">你是防災小英雄！</p>
+                <button onclick="location.reload()" class="bg-blue-500 text-white font-bold py-3 px-8 rounded-full shadow hover:bg-blue-600">再玩一次</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- GAME CONFIG ---
+        const config = {
+            width: 800,
+            height: 600,
+            speed: 4,
+            npcSpeed: 1
+        };
+
+        const praises = ["Excellent!", "Good Job!", "You are a Star!", "Awesome!", "Great Work!", "Fantastic!"];
+
+        const questions = [
+            { id: 1, item: 'book', q: "Where is the book?", targetObj: "desk", targetPrep: "on", displayA: "It is on the desk." },
+            { id: 2, item: 'eraser', q: "Where is the eraser?", targetObj: "chair", targetPrep: "on", displayA: "It is on the chair." },
+            { id: 3, item: 'pen', q: "Where is the pen?", targetObj: "chair", targetPrep: "under", displayA: "It is under the chair." },
+            { id: 4, item: 'pencil', q: "Where is the pencil?", targetObj: "box", targetPrep: "in", displayA: "It is in the box." },
+            { id: 5, item: 'marker', q: "Where is the marker?", targetObj: "desk", targetPrep: "on", displayA: "It is on the desk." },
+            { id: 6, item: 'ruler', q: "Where is the ruler?", targetObj: "desk", targetPrep: "under", displayA: "It is under the desk." },
+            { id: 7, type: 'quake', q: "Earthquake! What do you do?", a: ["drop", "cover", "hold"], displayA: "Drop, Cover, Hold on!" },
+            { id: 8, type: 'rescue', q: "Where is Boka?", targetObj: "desk", targetPrep: "under", displayA: "He is under the desk." }
+        ];
+
+        // --- ASSETS & RENDERING ---
+        const Colors = {
+            floor: '#f7d794',
+            desk: '#d1ccc0',
+            chair: '#a4b0be',
+            playerSkin: '#fab1a0',
+            playerShirt: '#74b9ff',
+            npc: ['#ff7675', '#55efc4', '#a29bfe', '#fdcb6e', '#e17055', '#00b894']
+        };
+
+        const Painter = {
+            drawItem(ctx, item) {
+                // HIDE ITEM IF NOT FOUND YET
+                if (!item.found) return;
+
+                const { x, y, type } = item;
+                ctx.save();
+                ctx.translate(x, y);
+
+                // Draw Item Graphics
+                if (type === 'book') {
+                    ctx.fillStyle = '#e74c3c'; ctx.fillRect(-15, -12, 30, 24); 
+                    ctx.fillStyle = 'white'; ctx.fillRect(-15, -12, 5, 24);
+                    ctx.strokeStyle = 'black'; ctx.strokeRect(-15, -12, 30, 24);
+                    ctx.fillStyle = '#c0392b'; ctx.fillRect(-5, -5, 10, 10);
+                } 
+                else if (type === 'eraser') {
+                    ctx.rotate(-0.2);
+                    ctx.fillStyle = 'white'; ctx.fillRect(-15, -8, 30, 16);
+                    ctx.fillStyle = '#0984e3'; ctx.fillRect(-5, -8, 20, 16);
+                    ctx.strokeStyle = 'black'; ctx.strokeRect(-15, -8, 30, 16);
+                } 
+                else if (type === 'pen') {
+                    ctx.rotate(0.5);
+                    ctx.fillStyle = '#e17055'; ctx.fillRect(-20, -3, 40, 6);
+                    ctx.fillStyle = '#2d3436'; ctx.fillRect(10, -4, 12, 8);
+                } 
+                else if (type === 'pencil') {
+                    ctx.rotate(-0.5);
+                    ctx.fillStyle = '#f1c40f'; ctx.fillRect(-20, -3, 35, 6);
+                    ctx.fillStyle = '#fab1a0'; ctx.fillRect(15, -3, 5, 6);
+                    ctx.fillStyle = '#2d3436'; ctx.beginPath(); ctx.moveTo(-20, -3); ctx.lineTo(-26, 0); ctx.lineTo(-20, 3); ctx.fill();
+                } 
+                else if (type === 'marker') {
+                    ctx.fillStyle = '#6c5ce7'; ctx.fillRect(-15, -5, 30, 10);
+                    ctx.fillStyle = 'black'; ctx.fillRect(10, -6, 8, 12);
+                } 
+                else if (type === 'ruler') {
+                    ctx.rotate(0.2);
+                    ctx.fillStyle = '#ffeaa7'; ctx.fillRect(-20, -6, 40, 12);
+                    ctx.strokeStyle = 'black'; ctx.strokeRect(-20, -6, 40, 12);
+                    ctx.beginPath(); for(let i=-15; i<15; i+=5) { ctx.moveTo(i, -6); ctx.lineTo(i, 0); } ctx.stroke();
+                } 
+                else if (type === 'box') {
+                    ctx.fillStyle = '#e58e26'; ctx.fillRect(-20, -15, 40, 30);
+                    ctx.fillStyle = '#b76d1d'; ctx.fillRect(-15, -15, 30, 10);
+                }
+                ctx.restore();
+            },
+
+            drawInsect(ctx, x, y, color, type) {
+                ctx.save();
+                ctx.translate(x, y);
+                const bob = Math.sin(Date.now() / 200) * 3;
+                ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.beginPath(); ctx.ellipse(0, 10, 15, 5, 0, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = color; ctx.beginPath(); ctx.ellipse(0, -10 + bob, 15, 20, 0, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = color; ctx.beginPath(); ctx.arc(0, -30 + bob, 12, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = 'white'; ctx.beginPath(); ctx.arc(-5, -32 + bob, 5, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(5, -32 + bob, 5, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = 'black'; ctx.beginPath(); ctx.arc(-5, -32 + bob, 2, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(5, -32 + bob, 2, 0, Math.PI*2); ctx.fill();
+
+                if (type === 'bee') { 
+                    ctx.fillStyle = '#2d3436'; ctx.fillRect(-12, -15 + bob, 24, 3); ctx.fillRect(-14, -5 + bob, 28, 3);
+                    ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.beginPath(); ctx.ellipse(-20, -20+bob, 15, 8, -0.5, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(20, -20+bob, 15, 8, 0.5, 0, Math.PI*2); ctx.fill();
+                } else if (type === 'ladybug') { 
+                    ctx.fillStyle = 'black'; ctx.beginPath(); ctx.arc(-5, -15+bob, 2, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(5, -8+bob, 2, 0, Math.PI*2); ctx.fill();
+                } else if (type === 'ant') {
+                    ctx.strokeStyle = 'black'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-3, -40+bob); ctx.lineTo(-10, -50+bob); ctx.stroke(); ctx.beginPath(); ctx.moveTo(3, -40+bob); ctx.lineTo(10, -50+bob); ctx.stroke();
+                }
+                ctx.restore();
+            },
+
+            drawStudent(ctx, x, y) {
+                ctx.save();
+                ctx.translate(x, y);
+                const bob = Math.sin(Date.now() / 150) * 2;
+                ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.beginPath(); ctx.ellipse(0, 5, 12, 4, 0, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#2d3436'; ctx.fillRect(-6, 0, 4, 10); ctx.fillRect(2, 0, 4, 10);
+                ctx.fillStyle = Colors.playerShirt; ctx.fillRect(-10, -20 + bob, 20, 20);
+                ctx.fillStyle = '#d63031'; ctx.fillRect(-8, -20 + bob, 2, 20); ctx.fillRect(6, -20 + bob, 2, 20);
+                ctx.fillStyle = Colors.playerSkin; ctx.beginPath(); ctx.arc(0, -26 + bob, 12, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = 'black'; ctx.beginPath(); ctx.arc(0, -28 + bob, 13, Math.PI, Math.PI*2); ctx.fill();
+                ctx.restore();
+            }
+        };
+
+        const game = {
+            canvas: document.getElementById('gameCanvas'),
+            ctx: document.getElementById('gameCanvas').getContext('2d'),
+            state: 'MENU',
+            progress: 0,
+            entities: [],
+            items: [],
+            player: { x: 400, y: 500, w: 30, h: 30 },
+            
+            init() {
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+                dialogSystem.init();
+                this.setupWorld();
+                this.loop();
+            },
+
+            resize() {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+            },
+
+            setupWorld() {
+                // Initialize items with 'found: false' to hide them initially
+                // Items with specific targets for clearer investigating
+                this.items.push({ x: 100, y: 500, type: 'box', tObj: 'box', tPrep: 'in', found: true }); // Box is container, visible? Let's keep box visible but item inside hidden
+                this.items.push({ x: 100, y: 490, type: 'pencil', tObj: 'box', tPrep: 'in', found: false }); 
+                
+                // Desks items
+                this.items.push({ x: 200, y: 190, type: 'book', tObj: 'desk', tPrep: 'on', found: false });
+                this.items.push({ x: 400, y: 240, type: 'eraser', tObj: 'chair', tPrep: 'on', found: false }); 
+                this.items.push({ x: 600, y: 250, type: 'pen', tObj: 'chair', tPrep: 'under', found: false }); 
+                this.items.push({ x: 200, y: 390, type: 'marker', tObj: 'desk', tPrep: 'on', found: false }); 
+                this.items.push({ x: 600, y: 420, type: 'ruler', tObj: 'desk', tPrep: 'under', found: false }); 
+                
+                // ADDED SUBTYPE BOKA TO FIX CRASH
+                this.entities.push({ x: 400, y: 420, type: 'boka', subType: 'boka', visible: false, qId: 8 });
+
+                const insects = ['bee', 'ladybug', 'ant', 'bee', 'ladybug', 'ant'];
+                insects.forEach((type, i) => {
+                    this.entities.push({
+                        x: 100 + Math.random() * 600,
+                        y: 100 + Math.random() * 400,
+                        type: 'npc',
+                        subType: type,
+                        color: Colors.npc[i],
+                        qId: i + 1,
+                        solved: false,
+                        dirX: Math.random() < 0.5 ? 1 : -1,
+                        dirY: Math.random() < 0.5 ? 1 : -1,
+                        moveTimer: 0
+                    });
+                });
+            },
+
+            showTutorial() {
+                document.getElementById('start-screen').style.display = 'none';
+                document.getElementById('tutorial-screen').style.display = 'flex';
+                this.state = 'TUTORIAL';
+            },
+
+            start() {
+                document.getElementById('tutorial-screen').style.display = 'none';
+                document.getElementById('hud').style.display = 'flex';
+                document.getElementById('controls').style.display = 'flex';
+                this.state = 'PLAY';
+                this.updateHud();
+            },
+
+            update() {
+                if (this.state !== 'PLAY' && this.state !== 'QUAKE') return;
+                if (dialogSystem.active) return;
+
+                let dx = input.x; let dy = input.y;
+                if (input.keys['ArrowUp'] || input.keys['w']) dy = -1;
+                if (input.keys['ArrowDown'] || input.keys['s']) dy = 1;
+                if (input.keys['ArrowLeft'] || input.keys['a']) dx = -1;
+                if (input.keys['ArrowRight'] || input.keys['d']) dx = 1;
+
+                this.player.x += dx * config.speed;
+                this.player.y += dy * config.speed;
+                this.player.x = Math.max(30, Math.min(this.canvas.width - 30, this.player.x));
+                this.player.y = Math.max(30, Math.min(this.canvas.height - 30, this.player.y));
+
+                this.entities.forEach(e => {
+                    if (e.type === 'npc') {
+                        e.moveTimer++;
+                        if (e.moveTimer > 100) {
+                            e.dirX = Math.random() < 0.5 ? 0.5 : -0.5;
+                            e.dirY = Math.random() < 0.5 ? 0.5 : -0.5;
+                            e.moveTimer = 0;
+                        }
+                        const dist = Math.hypot(e.x - this.player.x, e.y - this.player.y);
+                        if (dist > 80) {
+                            e.x += e.dirX * config.npcSpeed;
+                            e.y += e.dirY * config.npcSpeed;
+                            if (e.x < 50 || e.x > this.canvas.width - 50) e.dirX *= -1;
+                            if (e.y < 50 || e.y > this.canvas.height - 50) e.dirY *= -1;
+                        }
+                    }
+                });
+
+                // Check proximity for interactions
+                this.checkProximity();
+
+                if (input.action) {
+                    this.triggerInteraction();
+                    input.action = false;
+                }
+            },
+
+            checkProximity() {
+                const actionBtn = document.getElementById('action-btn');
+                
+                // Priority 1: NPCs
+                const closestNPC = this.entities.find(e => {
+                    const dist = Math.hypot(e.x - this.player.x, e.y - this.player.y);
+                    return dist < 60 && !e.solved && (e.visible !== false);
+                });
+
+                // Priority 2: Items (Investigation)
+                // Search for ANY hidden item near me (except the box container itself which is found=true)
+                const closestItem = this.items.find(i => {
+                    // Only prompt for hidden items (to find them) OR visible items (to re-read hint, optional)
+                    // Let's prompt for all items so kids can review
+                    const dist = Math.hypot(i.x - this.player.x, i.y - this.player.y);
+                    return dist < 60 && i.type !== 'box'; 
+                });
+
+                if (closestNPC) {
+                    actionBtn.innerText = "Talk";
+                    actionBtn.classList.remove('search-mode');
+                    actionBtn.classList.add('bg-red-500');
+                } else if (closestItem) {
+                    actionBtn.innerText = "🔍";
+                    actionBtn.classList.add('search-mode');
+                    actionBtn.classList.remove('bg-red-500');
+                } else {
+                    actionBtn.innerText = "Wait";
+                    actionBtn.classList.remove('search-mode');
+                    actionBtn.classList.remove('bg-red-500');
+                }
+            },
+
+            triggerInteraction() {
+                // 1. NPC
+                const closestNPC = this.entities.find(e => {
+                    const dist = Math.hypot(e.x - this.player.x, e.y - this.player.y);
+                    return dist < 60 && !e.solved && (e.visible !== false);
+                });
+                if (closestNPC) {
+                    const qData = questions.find(q => q.id === closestNPC.qId);
+                    if (qData) dialogSystem.open(qData, closestNPC.subType);
+                    return;
+                }
+
+                // 2. Item Investigation
+                const closestItem = this.items.find(i => {
+                    const dist = Math.hypot(i.x - this.player.x, i.y - this.player.y);
+                    return dist < 60 && i.type !== 'box';
+                });
+                if (closestItem) {
+                    // MARK ITEM AS FOUND TO MAKE IT VISIBLE
+                    closestItem.found = true;
+
+                    // Show Investigation Modal
+                    const modal = document.getElementById('investigate-modal');
+                    const nameSpan = document.getElementById('found-item-name');
+                    const prepSpan = document.getElementById('found-prep');
+                    const objSpan = document.getElementById('found-obj');
+
+                    nameSpan.innerText = closestItem.type.toUpperCase();
+                    prepSpan.innerText = closestItem.tPrep;
+                    objSpan.innerText = closestItem.tObj;
+
+                    modal.style.display = 'flex';
+                    
+                    dialogSystem.speak(`You found a ${closestItem.type}! It is ${closestItem.tPrep} the ${closestItem.tObj}.`);
+                }
+            },
+
+            handleCorrectAnswer(qId) {
+                const entity = this.entities.find(e => e.qId === qId);
+                if (entity) entity.solved = true;
+                this.progress++;
+                this.updateHud();
+
+                if (this.progress === 6) {
+                    this.triggerEarthquake();
+                } else if (this.progress === 7) {
+                    this.state = 'PLAY';
+                    document.getElementById('game-container').classList.remove('shake');
+                    document.body.style.backgroundColor = '#2C3E50';
+                    const boka = this.entities.find(e => e.type === 'boka');
+                    if (boka) boka.visible = true;
+                    document.getElementById('mission-text').innerText = "尋找 Boka!";
+                    dialogSystem.speak("The shaking stopped. Where is Boka?");
+                } else if (this.progress === 8) {
+                    this.winGame();
+                }
+            },
+
+            triggerEarthquake() {
+                this.state = 'QUAKE';
+                document.getElementById('game-container').classList.add('shake');
+                document.body.style.backgroundColor = '#e74c3c';
+                document.getElementById('mission-text').innerText = "地震! EARTHQUAKE!";
+                setTimeout(() => {
+                    const qData = questions.find(q => q.id === 7);
+                    dialogSystem.open(qData, 'quake');
+                }, 1500);
+            },
+
+            winGame() {
+                this.state = 'WIN';
+                document.getElementById('win-screen').style.display = 'flex';
+                dialogSystem.speak("You are a hero! You win!");
+            },
+
+            updateHud() {
+                document.getElementById('progress-text').innerText = `${Math.min(this.progress, 8)}/8`;
+                if (this.progress < 6) document.getElementById('mission-text').innerText = "調查 & 對話";
+            },
+
+            draw() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+                // Floor
+                this.ctx.strokeStyle = '#f0d9b5';
+                this.ctx.lineWidth = 2;
+                for(let x=0; x<this.canvas.width; x+=100) {
+                    this.ctx.beginPath(); this.ctx.moveTo(x,0); this.ctx.lineTo(x,this.canvas.height); this.ctx.stroke();
+                }
+
+                // Desks/Chairs
+                const furniture = [
+                    {x: 200, y: 200}, {x: 400, y: 200}, {x: 600, y: 200},
+                    {x: 200, y: 400}, {x: 400, y: 400}, {x: 600, y: 400}
+                ];
+                furniture.forEach(f => {
+                    this.ctx.fillStyle = Colors.desk;
+                    this.ctx.fillRect(f.x-30, f.y-15, 60, 30);
+                    this.ctx.fillStyle = Colors.chair;
+                    this.ctx.fillRect(f.x-20, f.y+20, 40, 10);
+                });
+
+                // Items
+                this.items.forEach(item => Painter.drawItem(this.ctx, item));
+
+                // Entities
+                const renderList = [...this.entities, { type: 'player', y: this.player.y, x: this.player.x }];
+                renderList.sort((a, b) => a.y - b.y);
+
+                renderList.forEach(e => {
+                    if (e.visible === false) return;
+                    if (e.type === 'player') Painter.drawStudent(this.ctx, e.x, e.y);
+                    else if (e.type === 'npc') {
+                        if (e.solved) this.ctx.globalAlpha = 0.5;
+                        Painter.drawInsect(this.ctx, e.x, e.y, e.color, e.subType);
+                        if (!e.solved && this.state === 'PLAY') {
+                            const dist = Math.hypot(e.x - this.player.x, e.y - this.player.y);
+                            if (dist < 60) {
+                                this.ctx.fillStyle = 'white'; this.ctx.beginPath();
+                                this.ctx.arc(e.x+15, e.y-40, 10, 0, Math.PI*2); this.ctx.fill();
+                                this.ctx.fillStyle = 'black'; this.ctx.font = 'bold 16px Arial';
+                                this.ctx.fillText('?', e.x+11, e.y-35);
+                            }
+                        }
+                        this.ctx.globalAlpha = 1.0;
+                    } else if (e.type === 'boka') {
+                        this.ctx.fillStyle = '#0984e3'; this.ctx.beginPath(); this.ctx.arc(e.x, e.y, 20, 0, Math.PI*2); this.ctx.fill();
+                        this.ctx.fillStyle = 'white'; this.ctx.beginPath(); this.ctx.arc(e.x-6, e.y-5, 5, 0, Math.PI*2); this.ctx.fill();
+                        this.ctx.beginPath(); this.ctx.arc(e.x+6, e.y-5, 5, 0, Math.PI*2); this.ctx.fill();
+                    }
+                });
+                
+                // Draw Search Icon if near item (Only for search mode)
+                const closestItem = this.items.find(i => Math.hypot(i.x - this.player.x, i.y - this.player.y) < 60 && i.type !== 'box');
+                if (closestItem && this.state === 'PLAY') {
+                    // Draw above furniture height so it's visible
+                    this.ctx.font = '40px Arial';
+                    this.ctx.fillStyle = 'black';
+                    this.ctx.textAlign = 'center';
+                    // Simple bob animation for the icon
+                    const bob = Math.sin(Date.now() / 150) * 5;
+                    this.ctx.fillText('🔍', closestItem.x, closestItem.y - 40 + bob);
+                }
+            },
+
+            loop() {
+                this.update(); this.draw();
+                requestAnimationFrame(() => this.loop());
+            }
+        };
+
+        const input = { x: 0, y: 0, action: false, keys: {} };
+        window.addEventListener('keydown', e => { input.keys[e.key] = true; if(e.key === ' ' || e.key === 'Enter') input.action = true; });
+        window.addEventListener('keyup', e => { input.keys[e.key] = false; if(e.key === ' ' || e.key === 'Enter') input.action = false; });
+
+        const joy = { el: document.getElementById('joystick'), knob: document.getElementById('knob'), active: false, startX:0, startY:0 };
+        joy.el.addEventListener('touchstart', e => { e.preventDefault(); joy.active = true; const r = joy.el.getBoundingClientRect(); joy.startX = r.left+r.width/2; joy.startY = r.top+r.height/2; updateJoy(e.touches[0]); });
+        joy.el.addEventListener('touchmove', e => { e.preventDefault(); if(joy.active) updateJoy(e.touches[0]); });
+        joy.el.addEventListener('touchend', e => { e.preventDefault(); joy.active = false; joy.knob.style.transform = `translate(0px,0px)`; input.x=0; input.y=0; });
+        function updateJoy(touch) {
+            let dx = touch.clientX - joy.startX; let dy = touch.clientY - joy.startY;
+            const dist = Math.min(Math.hypot(dx, dy), 40);
+            const angle = Math.atan2(dy, dx);
+            joy.knob.style.transform = `translate(${Math.cos(angle)*dist}px, ${Math.sin(angle)*dist}px)`;
+            input.x = (Math.cos(angle)*dist)/40; input.y = (Math.sin(angle)*dist)/40;
+        }
+
+        const dialogSystem = {
+            active: false,
+            currentQ: null,
+            recognition: null,
+            init() {
+                if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+                    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+                    this.recognition = new SR();
+                    this.recognition.lang = 'en-US';
+                    this.recognition.onresult = e => { 
+                        document.getElementById('text-input').value = e.results[0][0].transcript;
+                        this.recognition.stop();
+                    };
+                    this.recognition.onstart = () => document.getElementById('voice-btn').classList.add('listening');
+                    this.recognition.onend = () => document.getElementById('voice-btn').classList.remove('listening');
+                } else { document.getElementById('voice-btn').style.display = 'none'; }
+            },
+            open(q, npcType) {
+                this.active = true;
+                this.currentQ = q;
+                input.x = 0; input.y = 0;
+                document.getElementById('dialog-modal').style.display = 'flex';
+                document.getElementById('input-area').style.display = 'block';
+                document.getElementById('continue-btn').style.display = 'none';
+                
+                const textInput = document.getElementById('text-input');
+                textInput.value = '';
+                
+                // Set placeholder based on question type
+                if (q.type === 'quake') {
+                    textInput.placeholder = "趴、掩、穩";
+                } else {
+                    textInput.placeholder = "Ex: It is on the desk.";
+                }
+                
+                // FIXED: ADDED BOKA EMOJI
+                const emojis = { bee: '🐝', ladybug: '🐞', ant: '🐜', quake: '⚠️', boka: '👾' };
+                // SAFEGUARD: FALLBACK TO CRICKET IF UNDEFINED
+                const safeType = npcType || 'unknown';
+
+                document.getElementById('npc-avatar').innerText = emojis[safeType] || '🦗';
+                
+                // FIXED: ADDED BOKA NAME HANDLING
+                const speakerName = (safeType === 'quake') ? 'SYSTEM' : 
+                                    (safeType === 'boka') ? 'Boka' :
+                                    `Mr. ${safeType.charAt(0).toUpperCase() + safeType.slice(1)}`;
+                
+                document.getElementById('dialog-speaker').innerText = speakerName;
+                document.getElementById('dialog-text').innerText = q.q;
+                this.speak(q.q);
+            },
+            close() {
+                document.getElementById('dialog-modal').style.display = 'none';
+                this.active = false;
+            },
+            toggleListening() { if(this.recognition) try { this.recognition.start(); } catch(e) { this.recognition.stop(); } },
+            submitAnswer() {
+                const val = document.getElementById('text-input').value.toLowerCase().trim();
+                const q = this.currentQ;
+                let correct = false;
+
+                if (q.type === 'quake') {
+                    if (val.includes("drop") && val.includes("cover")) correct = true;
+                } else {
+                    const hasSubject = val.startsWith("it") || val.startsWith("the") || val.startsWith("he") || val.startsWith("she");
+                    const hasPrep = val.includes(q.targetPrep);
+                    const hasObj = val.includes(q.targetObj);
+                    if (hasSubject && hasPrep && hasObj) correct = true;
+                }
+                
+                const textField = document.getElementById('dialog-text');
+                
+                if (correct) {
+                    document.getElementById('input-area').style.display = 'none';
+                    document.getElementById('continue-btn').style.display = 'block';
+                    textField.innerHTML = `<span class="text-green-500 font-bold">Correct!</span><br>${this.currentQ.displayA}`;
+                    this.speak("Correct! " + this.currentQ.displayA);
+                    game.handleCorrectAnswer(this.currentQ.id);
+                } else {
+                    let hint = "";
+                    if (q.type !== 'quake') {
+                        if (!val.startsWith("it") && !val.startsWith("the") && !val.startsWith("he")) hint = "Start with 'It is...'";
+                        else if (!val.includes(q.targetObj)) hint = `Look at the <b>${q.targetObj}</b>!`;
+                        else if (!val.includes(q.targetPrep)) hint = `Is it <b>in</b>, <b>on</b>, or <b>under</b> the ${q.targetObj}?`;
+                        else hint = `Try a full sentence: It is [in/on/under] the [desk/chair/box].`;
+                    } else {
+                         hint = "請做動作：趴、掩、穩 (Drop, Cover, Hold on!)";
+                    }
+                    textField.innerHTML = `<span class="text-red-500 font-bold">Try again!</span><br>${hint}`;
+                    this.speak("Try again.");
+                }
+            },
+            speak(txt) { if('speechSynthesis' in window) { const u = new SpeechSynthesisUtterance(txt); u.lang='en-US'; speechSynthesis.speak(u); } }
+        };
+
+        game.init();
+
+    </script>
+</body>
+</html>
