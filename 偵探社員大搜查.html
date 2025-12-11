@@ -1,0 +1,523 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { Camera, Shield, Heart, Zap, Map, Book, Key, Star, ChevronLeft, Save, AlertTriangle, User, Users, ClipboardList } from 'lucide-react';
+
+// --- 像素風格偵探頭像元件 ---
+const PixelDetectiveAvatar = () => (
+  <svg width="100" height="100" viewBox="0 0 12 12" className="mx-auto mb-4 drop-shadow-md">
+    <rect x="1" y="2" width="10" height="8" fill="#1c1917" />
+    <rect x="2" y="4" width="8" height="6" fill="#fcc0b3" />
+    <rect x="3" y="0" width="6" height="3" fill="#854d0e" />
+    <rect x="1" y="2" width="10" height="2" fill="#a16207" />
+    <rect x="3" y="2" width="6" height="1" fill="#451a03" />
+    <rect x="3" y="5" width="2" height="2" fill="#fff" />
+    <rect x="4" y="6" width="1" height="1" fill="#3b82f6" />
+    <rect x="7" y="5" width="2" height="2" fill="#fff" />
+    <rect x="7" y="6" width="1" height="1" fill="#3b82f6" />
+    <rect x="4" y="8" width="4" height="1" fill="#b45309" />
+  </svg>
+);
+
+const MinecraftRPG = () => {
+  // --- 遊戲狀態管理 ---
+  // Flow: start -> selfScan -> intro -> game -> reward -> summary
+  const [gameState, setGameState] = useState('start'); 
+  const [rawName, setRawName] = useState('');
+  const [detectiveName, setDetectiveName] = useState('');
+  
+  // 自我觀察資料
+  const [selfData, setSelfData] = useState({ strength: '', weakness: '' });
+
+  // 隊友掃描資料
+  const [logs, setLogs] = useState([]);
+  const [currentTeammate, setCurrentTeammate] = useState({ 
+    name: '', 
+    assignedClass: null, // 為隊友選擇的職業
+    strength: '',   // 優點
+    shortcoming: '', // 缺點 (新增)
+    suggestion: ''  // 建議 (原 weakness)
+  });
+  
+  const [inventory, setInventory] = useState([]);
+  const [errorMsg, setErrorMsg] = useState('');
+  
+  // 總共需要掃描的人數
+  const TARGET_COUNT = 7;
+
+  // --- 資料設定 ---
+  const classes = [
+    { id: 'warrior', name: '鑽石戰士', desc: '勇敢、保護他人' },
+    { id: 'mage', name: '紅石法師', desc: '聰明、邏輯強' },
+    { id: 'archer', name: '骷髏射手', desc: '專注、目標明確' },
+    { id: 'cleric', name: '金蘋果牧師', desc: '溫柔、善解人意' },
+    { id: 'thief', name: '終界刺客', desc: '敏捷、觀察力強' },
+    { id: 'paladin', name: '鐵巨人騎士', desc: '正義、堅持原則' },
+    { id: 'bard', name: '音符盒詩人', desc: '幽默、善於溝通' },
+    { id: 'druid', name: '叢林守護者', desc: '平和、喜愛自然' },
+    { id: 'alchemist', name: '藥水煉金師', desc: '創意、喜歡實驗' },
+    { id: 'builder', name: '基岩建築師', desc: '穩重、規劃能力' },
+  ];
+
+  const selItems = [
+    { name: '同理心透鏡', icon: <Camera size={40} />, desc: '能看見別人內心感受的神奇鏡片。' },
+    { name: '耐心之盾', icon: <Shield size={40} />, desc: '抵擋衝動，學會等待的盾牌。' },
+    { name: '善良金蘋果', icon: <Heart size={40} />, desc: '恢復友誼值的美味果實。' },
+    { name: '勇氣火把', icon: <Zap size={40} />, desc: '照亮未知，勇於嘗試的光芒。' },
+    { name: '合作地圖', icon: <Map size={40} />, desc: '指引團隊方向的必備工具。' },
+    { name: '反思之書', icon: <Book size={40} />, desc: '記錄錯誤並從中學習的筆記。' },
+    { name: '情緒鑰匙', icon: <Key size={40} />, desc: '解開解鎖他人心房的關鍵。' },
+  ];
+
+  const forbiddenWords = ['笨', '白癡', '智障', '去死', '討厭', '豬', '醜', '爛', '廢', '混蛋'];
+
+  // --- 邏輯處理 ---
+
+  const handleNameSubmit = () => {
+    if (!rawName.trim()) return;
+    let processedName = rawName.trim();
+    const isChinese = /[\u4e00-\u9fa5]/.test(processedName);
+    if (isChinese && processedName.length >= 2) {
+      processedName = processedName.length === 2 ? processedName.substring(1) : processedName.substring(1);
+    }
+    setDetectiveName(`${processedName}偵探`);
+    setGameState('selfScan'); 
+  };
+
+  // 提交自我觀察
+  const handleSelfSubmit = () => {
+    setErrorMsg('');
+    const { strength, weakness } = selfData;
+    
+    if (!strength || !weakness) {
+      setErrorMsg('請完整填寫你的自我觀察報告！');
+      return;
+    }
+    if (strength.length < 5 || weakness.length < 5) {
+      setErrorMsg('請寫具體一點 (至少 5 個字)。');
+      return;
+    }
+    setGameState('intro');
+  };
+
+  // 提交隊友觀察日誌
+  const handleSubmitLog = () => {
+    setErrorMsg('');
+    const { name, assignedClass, strength, shortcoming, suggestion } = currentTeammate;
+
+    // 1. 檢查完整性
+    if (!name || !assignedClass || !strength || !shortcoming || !suggestion) {
+      setErrorMsg('資料不完整！請填寫姓名、選擇職業，並完成優點、缺點與建議。');
+      return;
+    }
+
+    // 2. 檢查長度
+    if (strength.length < 3 || shortcoming.length < 3 || suggestion.length < 3) {
+      setErrorMsg('觀察紀錄太短了！請至少寫 3 個字以上。');
+      return;
+    }
+
+    // 3. 檢查不當詞彙
+    const combinedText = `${name}${strength}${shortcoming}${suggestion}`;
+    const foundBadWord = forbiddenWords.find(word => combinedText.includes(word));
+    if (foundBadWord) {
+      setErrorMsg(`警告：偵測到不當詞彙「${foundBadWord}」。請修正用語。`);
+      return;
+    }
+
+    const newLogs = [...logs, currentTeammate];
+    setLogs(newLogs);
+    
+    const rewardIndex = (newLogs.length - 1) % selItems.length;
+    setInventory([...inventory, selItems[rewardIndex]]);
+    setGameState('reward');
+  };
+
+  const nextStepAfterReward = () => {
+    setCurrentTeammate({ name: '', assignedClass: null, strength: '', shortcoming: '', suggestion: '' });
+    if (logs.length >= TARGET_COUNT) {
+      setGameState('summary');
+    } else {
+      setGameState('game');
+    }
+  };
+
+  // --- 樣式定義 ---
+  const styles = {
+    container: "min-h-screen bg-stone-900 text-white font-mono flex flex-col items-center justify-center p-4 select-none",
+    pixelBox: "bg-stone-800 border-4 border-stone-600 shadow-[8px_8px_0_0_rgba(0,0,0,0.5)] p-4 md:p-6 max-w-4xl w-full relative", // 加寬容器以適應表格
+    pixelBtn: "bg-stone-600 hover:bg-stone-500 text-white font-bold py-3 px-6 border-b-4 border-stone-900 active:border-b-0 active:mt-1 transition-all w-full mb-4 flex items-center justify-center gap-2",
+    pixelBtnGreen: "bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-6 border-b-4 border-green-800 active:border-b-0 active:mt-1 transition-all w-full flex items-center justify-center gap-2",
+    pixelInput: "bg-stone-900 border-2 border-stone-500 text-white p-3 w-full mb-4 focus:outline-none focus:border-green-500 font-mono",
+    label: "block text-stone-400 mb-2 text-sm uppercase tracking-wider",
+    header: "text-2xl md:text-3xl font-bold text-center text-green-400 mb-6 drop-shadow-md",
+    tableHeader: "bg-stone-700 text-yellow-400 font-bold p-2 border border-stone-600 text-center",
+    tableCell: "bg-stone-900 border border-stone-700 p-2 text-sm text-stone-300 align-top",
+  };
+
+  // 1. 開始畫面
+  if (gameState === 'start') {
+    return (
+      <div className={styles.container} style={{ backgroundImage: 'linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url("https://www.transparenttextures.com/patterns/cubes.png")' }}>
+        <div className={`${styles.pixelBox} max-w-lg`}>
+          <div className="flex justify-center animate-bounce-in">
+            <PixelDetectiveAvatar />
+          </div>
+          <div className="text-center mb-8">
+            <h1 className="text-4xl md:text-6xl font-bold text-green-500 mb-2 tracking-tighter" style={{ textShadow: '4px 4px 0 #000' }}>
+              快樂偵探社
+            </h1>
+            <p className="text-stone-400 text-lg">RPG 夥伴特質掃描儀</p>
+          </div>
+          <div className="space-y-4">
+            <label className={styles.label}>偵探代號 (真實姓名)：</label>
+            <input 
+              type="text" 
+              className={styles.pixelInput}
+              placeholder="例如：王小明"
+              value={rawName}
+              onChange={(e) => setRawName(e.target.value)}
+            />
+            <button onClick={handleNameSubmit} className={styles.pixelBtnGreen}>
+              <div className="w-4 h-4 bg-white mr-2"></div> 登入系統
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. 自我掃描 (Part 1)
+  if (gameState === 'selfScan') {
+    return (
+      <div className={styles.container}>
+        <div className={`${styles.pixelBox} max-w-2xl`}>
+          <div className="flex items-center justify-center gap-2 mb-6">
+            <User className="text-yellow-400" size={32} />
+            <h2 className="text-2xl font-bold text-white">第一部分：自我掃描</h2>
+          </div>
+          
+          <div className="bg-stone-900/50 p-4 border border-stone-600 mb-6 text-sm text-stone-300">
+             你好，{detectiveName}。在觀察別人之前，優秀的偵探必須先了解自己。請誠實分析你的優點與成長空間。
+          </div>
+
+          {errorMsg && (
+             <div className="bg-red-900/80 border-l-4 border-red-500 text-white p-3 mb-4 text-sm flex items-center gap-2">
+                <AlertTriangle size={16} /> {errorMsg}
+             </div>
+          )}
+
+          <div className="space-y-4">
+            <div>
+              <label className={styles.label}>我的超能力 (優點)</label>
+              <textarea 
+                className={`${styles.pixelInput} h-24 resize-none`}
+                placeholder="我覺得自己最棒的地方是... (例如：我很勇敢、我很有創意)"
+                value={selfData.strength}
+                onChange={(e) => setSelfData({...selfData, strength: e.target.value})}
+              />
+            </div>
+            <div>
+              <label className={styles.label}>我的成長區 (需改進)</label>
+              <textarea 
+                className={`${styles.pixelInput} h-24 resize-none`}
+                placeholder="我想改進的地方是... (例如：下次不要搶球、遇到挫折不放棄)"
+                value={selfData.weakness}
+                onChange={(e) => setSelfData({...selfData, weakness: e.target.value})}
+              />
+            </div>
+            <button onClick={handleSelfSubmit} className={styles.pixelBtnGreen}>
+              完成自我掃描，下一步
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 3. 任務說明 (Intro)
+  if (gameState === 'intro') {
+    return (
+      <div className={styles.container}>
+        <div className={`${styles.pixelBox} max-w-2xl`}>
+          <div className="flex items-center justify-center gap-2 mb-6">
+            <Users className="text-green-400" size={32} />
+            <h2 className="text-2xl font-bold text-white">第二部分：隊友觀察</h2>
+          </div>
+          
+          <div className="bg-stone-900 p-4 border-2 border-stone-700 mb-6 space-y-3 text-sm md:text-base leading-relaxed">
+            <p className="text-green-400 font-bold">【任務目標】</p>
+            <p>觀察 <span className="text-yellow-400">{TARGET_COUNT} 位</span> 夥伴，發掘他們的特質與改進空間。</p>
+            
+            <p className="text-green-400 font-bold mt-4">【操作步驟】</p>
+            <p>1. 輸入夥伴姓名。</p>
+            <p>2. <span className="text-blue-400">優點</span>：具體寫出他的強項。</p>
+            <p>3. <span className="text-orange-400">缺點</span>：誠實寫出他表現不好的地方 (如：愛講話)。</p>
+            <p>4. <span className="text-green-400">建議</span>：針對缺點，用「我希望」給予建設性建議。</p>
+            <p>5. <span className="text-purple-400 font-bold">職業配對</span>：根據以上觀察，覺得他最適合哪個 RPG 職業？</p>
+            
+            <div className="border-t border-stone-600 my-3"></div>
+            
+            <div className="flex items-start gap-2 text-yellow-500 bg-yellow-900/30 p-2 rounded">
+              <AlertTriangle size={24} className="shrink-0" />
+              <div>
+                <p className="font-bold">最高機密提醒</p>
+                <p>資料僅傳送給老師。嚴禁辱罵與人身攻擊，違者取消資格！</p>
+              </div>
+            </div>
+          </div>
+
+          <button onClick={() => setGameState('game')} className={styles.pixelBtnGreen}>
+            收到，開始執行任務
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // 4. 獎勵畫面
+  if (gameState === 'reward') {
+    const lastItem = inventory[inventory.length - 1];
+    return (
+      <div className={styles.container}>
+        <div className={`${styles.pixelBox} max-w-lg text-center animate-bounce-in`}>
+          <h2 className="text-yellow-400 text-2xl font-bold mb-4">觀察成功！獲得道具！</h2>
+          <div className="flex justify-center mb-6">
+            <div className="bg-stone-900 p-6 border-4 border-yellow-500 rounded-lg animate-pulse">
+              <div className="text-yellow-500 mb-2 flex justify-center">{lastItem.icon}</div>
+              <div className="text-xl font-bold text-white">{lastItem.name}</div>
+            </div>
+          </div>
+          <p className="text-stone-400 mb-8">{lastItem.desc}</p>
+          <button onClick={nextStepAfterReward} className={styles.pixelBtnGreen}>
+            收入背包並繼續 ({logs.length}/{TARGET_COUNT})
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // 5. 遊戲主畫面 (隊友掃描 - 新增缺點欄位)
+  if (gameState === 'game') {
+    return (
+      <div className={styles.container}>
+        <div className="w-full max-w-3xl mb-4 flex justify-between items-center text-sm">
+           <div className="flex items-center gap-2">
+             <div className="w-8 h-8 bg-stone-700 border-2 border-stone-500 flex items-center justify-center">
+               <span className="font-bold text-green-400">{logs.length}</span>
+             </div>
+             <span className="text-stone-400">/ {TARGET_COUNT} 夥伴已掃描</span>
+           </div>
+           <div className="text-stone-500">偵探：{detectiveName}</div>
+        </div>
+
+        <div className={`${styles.pixelBox} max-w-3xl`}>
+          <div className="absolute -top-3 -right-3 bg-yellow-500 text-black font-bold px-3 py-1 border-b-4 border-yellow-700 transform rotate-3">
+             第 {logs.length + 1} 位
+          </div>
+          
+          <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+            <Camera className="text-green-500" /> 夥伴觀察掃描儀
+          </h2>
+
+          {errorMsg && (
+             <div className="bg-red-900/80 border-l-4 border-red-500 text-white p-3 mb-4 text-sm flex items-center gap-2">
+                <AlertTriangle size={16} /> {errorMsg}
+             </div>
+          )}
+
+          <div className="space-y-4">
+            {/* 1. 姓名 */}
+            <div>
+              <label className={styles.label}>夥伴姓名</label>
+              <input 
+                type="text" 
+                className={styles.pixelInput}
+                placeholder="輸入同學名字"
+                value={currentTeammate.name}
+                onChange={(e) => setCurrentTeammate({...currentTeammate, name: e.target.value})}
+              />
+            </div>
+
+            {/* 2. 三個欄位：優點、缺點、建議 (移至職業選擇前) */}
+            <div className="grid md:grid-cols-3 gap-3">
+              <div>
+                <label className={styles.label}>
+                   <span className="text-blue-400">●</span> 優點 (超能力)
+                </label>
+                <textarea 
+                  className={`${styles.pixelInput} h-32 resize-none text-sm`}
+                  placeholder="他很細心，會幫忙..."
+                  value={currentTeammate.strength}
+                  onChange={(e) => setCurrentTeammate({...currentTeammate, strength: e.target.value})}
+                />
+              </div>
+
+              <div>
+                <label className={styles.label}>
+                   <span className="text-orange-400">●</span> 缺點 (需改進)
+                </label>
+                <textarea 
+                  className={`${styles.pixelInput} h-32 resize-none text-sm`}
+                  placeholder="他有時候會..."
+                  value={currentTeammate.shortcoming}
+                  onChange={(e) => setCurrentTeammate({...currentTeammate, shortcoming: e.target.value})}
+                />
+              </div>
+
+              <div>
+                <label className={styles.label}>
+                   <span className="text-green-400">●</span> 建議 (我希望)
+                </label>
+                <textarea 
+                  className={`${styles.pixelInput} h-32 resize-none text-sm`}
+                  placeholder="我希望他可以..."
+                  value={currentTeammate.suggestion}
+                  onChange={(e) => setCurrentTeammate({...currentTeammate, suggestion: e.target.value})}
+                />
+              </div>
+            </div>
+
+            {/* 3. 職業選擇 (移至最後) */}
+            <div className="bg-stone-900/50 p-3 border border-stone-600 rounded">
+               <label className={`${styles.label} text-purple-400 mb-3`}>根據以上觀察，你覺得他是哪種職業？(點擊選擇)</label>
+               <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                  {classes.map(cls => (
+                    <button
+                      key={cls.id}
+                      onClick={() => setCurrentTeammate({...currentTeammate, assignedClass: cls})}
+                      className={`p-2 text-xs border-2 text-center transition-all ${currentTeammate.assignedClass?.id === cls.id ? 'bg-purple-600 border-white scale-105' : 'bg-stone-700 border-stone-800 hover:bg-stone-600 text-stone-300'}`}
+                    >
+                      <div className="font-bold mb-1">{cls.name}</div>
+                      <div className="opacity-75 scale-90">{cls.desc}</div>
+                    </button>
+                  ))}
+               </div>
+            </div>
+            
+            <div className="flex gap-4 mt-4">
+                <button 
+                  onClick={() => setGameState('intro')} 
+                  className="bg-stone-700 hover:bg-stone-600 text-white font-bold py-3 px-4 border-b-4 border-stone-900 rounded-sm w-1/4 flex items-center justify-center"
+                >
+                  <ChevronLeft size={20} />
+                </button>
+                <button onClick={handleSubmitLog} className={styles.pixelBtnGreen}>
+                  <Save size={20} /> 記錄並上傳
+                </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 6. 總結畫面 (表格式呈現)
+  if (gameState === 'summary') {
+    return (
+      <div className={styles.container}>
+        <div className={`${styles.pixelBox} w-full max-w-5xl`}> {/* 加寬寬度 */}
+          <div className="text-center mb-4">
+             <Star className="w-12 h-12 text-yellow-400 mx-auto mb-2 animate-spin-slow" />
+             <h2 className="text-2xl font-bold text-green-400">任務大成功！</h2>
+             <p className="text-stone-300 text-sm">請將此畫面截圖傳送給社長。</p>
+          </div>
+
+          <div className="space-y-6">
+            
+            {/* 1. 自我觀察區塊 */}
+            <div className="bg-stone-800 border-2 border-stone-600 p-3">
+              <h3 className="text-yellow-400 font-bold mb-2 flex items-center gap-2 text-sm">
+                <User size={16}/> 自我掃描報告 - {detectiveName}
+              </h3>
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr>
+                    <th className={`${styles.tableHeader} w-1/2`}>我的優點</th>
+                    <th className={`${styles.tableHeader} w-1/2`}>我的成長區</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td className={styles.tableCell}>{selfData.strength}</td>
+                    <td className={styles.tableCell}>{selfData.weakness}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* 2. 隊友觀察區塊 (表格化) */}
+            <div className="bg-stone-900 border-2 border-stone-700">
+              <div className="bg-stone-800 p-2 border-b border-stone-700 flex justify-between items-center">
+                <h3 className="text-purple-400 font-bold flex items-center gap-2 text-sm">
+                  <ClipboardList size={16}/> 隊友觀察紀錄表
+                </h3>
+                <span className="text-stone-500 text-xs">{logs.length} 筆資料</span>
+              </div>
+              
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse min-w-[600px]">
+                  <thead>
+                    <tr>
+                      <th className={`${styles.tableHeader} w-24`}>姓名</th>
+                      <th className={`${styles.tableHeader} w-24`}>配對職業</th>
+                      <th className={`${styles.tableHeader}`}>優點</th>
+                      <th className={`${styles.tableHeader}`}>缺點</th>
+                      <th className={`${styles.tableHeader}`}>建議 (我希望)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {logs.map((log, idx) => (
+                      <tr key={idx}>
+                        <td className={`${styles.tableCell} font-bold text-white text-center`}>{log.name}</td>
+                        <td className={`${styles.tableCell} text-purple-300 text-center`}>
+                          <div className="font-bold">{log.assignedClass?.name}</div>
+                        </td>
+                        <td className={`${styles.tableCell} text-blue-200`}>{log.strength}</td>
+                        <td className={`${styles.tableCell} text-orange-200`}>{log.shortcoming}</td>
+                        <td className={`${styles.tableCell} text-green-200`}>{log.suggestion}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* 3. 背包 (縮小顯示) */}
+            <div className="bg-stone-900 p-3 border-2 border-stone-700">
+               <h3 className="text-yellow-400 font-bold mb-2 text-xs">SEL 道具背包</h3>
+               <div className="flex flex-wrap gap-2">
+                  {inventory.map((item, i) => (
+                     <div key={i} className="text-xs bg-stone-800 px-2 py-1 rounded border border-stone-600 flex items-center gap-1 text-stone-300">
+                        {item.icon} {item.name}
+                     </div>
+                  ))}
+               </div>
+            </div>
+
+          </div>
+
+          <div className="mt-6 flex justify-center">
+            <button 
+              className={`${styles.pixelBtnGreen} w-auto px-8 animate-pulse`}
+              onClick={() => alert("系統模擬：正在截圖... 圖片已保存！請將圖片傳送給社長。")}
+            >
+              <Camera className="mr-2" /> 截圖並傳送給社長
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+};
+
+const style = document.createElement('style');
+style.textContent = `
+  .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: #1c1917; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background: #57534e; border-radius: 4px; }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #78716c; }
+`;
+document.head.appendChild(style);
+
+export default MinecraftRPG;
