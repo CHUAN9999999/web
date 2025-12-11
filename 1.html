@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>快樂偵探社 RPG</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+        /* 自定義滾動條 */
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #1c1917; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #57534e; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #78716c; }
+        
+        /* 平滑滾動 */
+        html { scroll-behavior: smooth; }
+        
+        /* 防止雙擊放大與觸控優化 */
+        button, input, textarea { touch-action: manipulation; }
+        
+        /* 動畫 */
+        @keyframes bounce-in {
+            0% { transform: scale(0.3); opacity: 0; }
+            50% { transform: scale(1.05); opacity: 1; }
+            70% { transform: scale(0.9); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-bounce-in { animation: bounce-in 0.5s ease-out forwards; }
+        
+        @keyframes spin-slow {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .animate-spin-slow { animation: spin-slow 3s linear infinite; }
+
+        /* 隱藏/顯示控制 */
+        .screen { display: none; }
+        .screen.active { display: flex; }
+    </style>
+</head>
+<body class="bg-stone-900 text-white font-mono min-h-[100dvh] overflow-y-auto">
+
+    <div id="app-container" class="min-h-[100dvh] flex flex-col items-center justify-center p-4 select-none" 
+         style="background-image: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url('https://www.transparenttextures.com/patterns/cubes.png');">
+        
+        <!-- 1. 開始畫面 (Start Screen) -->
+        <div id="screen-start" class="screen active flex-col items-center w-full max-w-lg">
+            <div class="bg-stone-800 border-4 border-stone-600 shadow-[8px_8px_0_0_rgba(0,0,0,0.5)] p-4 md:p-6 w-full relative animate-bounce-in">
+                <!-- 像素頭像 SVG -->
+                <div class="flex justify-center mb-4 drop-shadow-md">
+                    <svg width="100" height="100" viewBox="0 0 12 12">
+                        <rect x="1" y="2" width="10" height="8" fill="#1c1917" />
+                        <rect x="2" y="4" width="8" height="6" fill="#fcc0b3" />
+                        <rect x="3" y="0" width="6" height="3" fill="#854d0e" />
+                        <rect x="1" y="2" width="10" height="2" fill="#a16207" />
+                        <rect x="3" y="2" width="6" height="1" fill="#451a03" />
+                        <rect x="3" y="5" width="2" height="2" fill="#fff" />
+                        <rect x="4" y="6" width="1" height="1" fill="#3b82f6" />
+                        <rect x="7" y="5" width="2" height="2" fill="#fff" />
+                        <rect x="7" y="6" width="1" height="1" fill="#3b82f6" />
+                        <rect x="4" y="8" width="4" height="1" fill="#b45309" />
+                    </svg>
+                </div>
+
+                <div class="text-center mb-8">
+                    <h1 class="text-4xl md:text-6xl font-bold text-green-500 mb-2 tracking-tighter" style="text-shadow: 4px 4px 0 #000">
+                        快樂偵探社
+                    </h1>
+                    <p class="text-stone-400 text-lg">RPG 夥伴特質掃描儀</p>
+                </div>
+                
+                <div class="space-y-4">
+                    <label class="block text-stone-400 mb-2 text-sm uppercase tracking-wider">偵探代號 (真實姓名)：</label>
+                    <input type="text" id="input-raw-name" class="bg-stone-900 border-2 border-stone-500 text-white p-3 w-full mb-4 focus:outline-none focus:border-green-500 font-mono text-base touch-manipulation" placeholder="例如：王小明">
+                    <button onclick="handleNameSubmit()" class="bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-6 border-b-4 border-green-800 active:border-b-0 active:mt-1 transition-all w-full flex items-center justify-center gap-2 touch-manipulation">
+                        <div class="w-4 h-4 bg-white"></div> 登入系統
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. 自我掃描 (Self Scan Screen) -->
+        <div id="screen-self-scan" class="screen flex-col items-center w-full max-w-2xl">
+            <div class="bg-stone-800 border-4 border-stone-600 shadow-[8px_8px_0_0_rgba(0,0,0,0.5)] p-4 md:p-6 w-full relative pb-10">
+                <div class="flex items-center justify-center gap-2 mb-6">
+                    <i data-lucide="user" class="text-yellow-400 w-8 h-8"></i>
+                    <h2 class="text-2xl font-bold text-white">第一部分：自我掃描</h2>
+                </div>
+                
+                <div class="bg-stone-900/50 p-4 border border-stone-600 mb-6 text-sm text-stone-300">
+                    你好，<span id="display-detective-name-1"></span>。在觀察別人之前，優秀的偵探必須先了解自己。請誠實分析你的優點與成長空間。
+                </div>
+
+                <div id="error-msg-self" class="hidden bg-red-900/80 border-l-4 border-red-500 text-white p-3 mb-4 text-sm flex items-center gap-2">
+                    <i data-lucide="alert-triangle" class="w-4 h-4"></i> <span id="error-text-self"></span>
+                </div>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-stone-400 mb-2 text-sm uppercase tracking-wider">我的超能力 (優點)</label>
+                        <textarea id="input-self-strength" class="bg-stone-900 border-2 border-stone-500 text-white p-3 w-full mb-4 focus:outline-none focus:border-green-500 font-mono text-base touch-manipulation h-32 resize-none" placeholder="我覺得自己最棒的地方是... (例如：我很勇敢、我很有創意)"></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-stone-400 mb-2 text-sm uppercase tracking-wider">我的成長區 (需改進)</label>
+                        <textarea id="input-self-weakness" class="bg-stone-900 border-2 border-stone-500 text-white p-3 w-full mb-4 focus:outline-none focus:border-green-500 font-mono text-base touch-manipulation h-32 resize-none" placeholder="我想改進的地方是... (例如：下次不要搶球、遇到挫折不放棄)"></textarea>
+                    </div>
+                    <div class="mb-10">
+                        <button onclick="handleSelfSubmit()" class="bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-6 border-b-4 border-green-800 active:border-b-0 active:mt-1 transition-all w-full flex items-center justify-center gap-2 touch-manipulation">
+                            完成自我掃描，下一步
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. 任務說明 (Intro Screen) -->
+        <div id="screen-intro" class="screen flex-col items-center w-full max-w-2xl">
+            <div class="bg-stone-800 border-4 border-stone-600 shadow-[8px_8px_0_0_rgba(0,0,0,0.5)] p-4 md:p-6 w-full relative">
+                <div class="flex items-center justify-center gap-2 mb-6">
+                    <i data-lucide="users" class="text-green-400 w-8 h-8"></i>
+                    <h2 class="text-2xl font-bold text-white">第二部分：隊友觀察</h2>
+                </div>
+                
+                <div class="bg-stone-900 p-4 border-2 border-stone-700 mb-6 space-y-3 text-sm md:text-base leading-relaxed">
+                    <p class="text-green-400 font-bold">【任務目標】</p>
+                    <p>觀察 <span class="text-yellow-400 font-bold">7 位</span> 夥伴，發掘他們的特質與改進空間。</p>
+                    
+                    <p class="text-green-400 font-bold mt-4">【操作步驟】</p>
+                    <p>1. 輸入夥伴姓名。</p>
+                    <p>2. <span class="text-blue-400">優點</span>：具體寫出他的強項。</p>
+                    <p>3. <span class="text-orange-400">缺點</span>：誠實寫出他表現不好的地方。</p>
+                    <p>4. <span class="text-green-400">建議</span>：針對缺點，用「我希望」給予建設性建議。</p>
+                    <p>5. <span class="text-purple-400 font-bold">職業配對</span>：最後，根據以上觀察，覺得他最適合哪個 RPG 職業？</p>
+                    
+                    <div class="border-t border-stone-600 my-3"></div>
+                    
+                    <div class="flex items-start gap-2 text-yellow-500 bg-yellow-900/30 p-2 rounded">
+                        <i data-lucide="alert-triangle" class="shrink-0 w-6 h-6"></i>
+                        <div>
+                            <p class="font-bold">最高機密提醒</p>
+                            <p>資料僅傳送給老師。嚴禁辱罵與人身攻擊，違者取消資格！</p>
+                        </div>
+                    </div>
+                </div>
+
+                <button onclick="startGame()" class="bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-6 border-b-4 border-green-800 active:border-b-0 active:mt-1 transition-all w-full flex items-center justify-center gap-2 touch-manipulation">
+                    收到，開始執行任務
+                </button>
+            </div>
+        </div>
+
+        <!-- 4. 遊戲主畫面 (Game Screen) -->
+        <div id="screen-game" class="screen flex-col items-center w-full max-w-3xl">
+            <!-- 頂部資訊列 -->
+            <div class="w-full max-w-3xl mb-4 flex justify-between items-center text-sm">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 bg-stone-700 border-2 border-stone-500 flex items-center justify-center">
+                        <span id="log-count" class="font-bold text-green-400">0</span>
+                    </div>
+                    <span class="text-stone-400">/ 7 夥伴已掃描</span>
+                </div>
+                <div class="text-stone-500">偵探：<span id="display-detective-name-2"></span></div>
+            </div>
+
+            <div class="bg-stone-800 border-4 border-stone-600 shadow-[8px_8px_0_0_rgba(0,0,0,0.5)] p-4 md:p-6 w-full relative pb-10">
+                <!-- 頁籤 -->
+                <div class="absolute -top-3 -right-3 bg-yellow-500 text-black font-bold px-3 py-1 border-b-4 border-yellow-700 transform rotate-3">
+                    第 <span id="current-index">1</span> 位
+                </div>
+                
+                <h2 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                    <i data-lucide="camera" class="text-green-500"></i> 夥伴觀察掃描儀
+                </h2>
+
+                <div id="error-msg-game" class="hidden bg-red-900/80 border-l-4 border-red-500 text-white p-3 mb-4 text-sm flex items-center gap-2">
+                    <i data-lucide="alert-triangle" class="w-4 h-4"></i> <span id="error-text-game"></span>
+                </div>
+
+                <div class="space-y-6">
+                    <!-- 1. 姓名 -->
+                    <div>
+                        <label class="block text-stone-400 mb-2 text-sm uppercase tracking-wider">夥伴姓名</label>
+                        <input type="text" id="input-tm-name" class="bg-stone-900 border-2 border-stone-500 text-white p-3 w-full mb-4 focus:outline-none focus:border-green-500 font-mono text-base touch-manipulation" placeholder="輸入同學名字">
+                    </div>
+
+                    <!-- 2. 優缺點建議 -->
+                    <div class="grid md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-stone-400 mb-2 text-sm uppercase tracking-wider">
+                                <span class="text-blue-400">●</span> 優點 (超能力)
+                            </label>
+                            <textarea id="input-tm-strength" class="bg-stone-900 border-2 border-stone-500 text-white p-3 w-full focus:outline-none focus:border-green-500 font-mono text-base touch-manipulation h-28 resize-none" placeholder="他很細心，會幫忙..."></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-stone-400 mb-2 text-sm uppercase tracking-wider">
+                                <span class="text-orange-400">●</span> 缺點 (需改進)
+                            </label>
+                            <textarea id="input-tm-shortcoming" class="bg-stone-900 border-2 border-stone-500 text-white p-3 w-full focus:outline-none focus:border-green-500 font-mono text-base touch-manipulation h-28 resize-none" placeholder="他有時候會..."></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-stone-400 mb-2 text-sm uppercase tracking-wider">
+                                <span class="text-green-400">●</span> 建議 (我希望)
+                            </label>
+                            <textarea id="input-tm-suggestion" class="bg-stone-900 border-2 border-stone-500 text-white p-3 w-full focus:outline-none focus:border-green-500 font-mono text-base touch-manipulation h-28 resize-none" placeholder="我希望他可以..."></textarea>
+                        </div>
+                    </div>
+
+                    <!-- 3. 職業選擇 -->
+                    <div class="bg-stone-900/50 p-4 border border-stone-600 rounded">
+                        <label class="block mb-3 text-sm uppercase tracking-wider text-purple-400">根據以上觀察，你覺得他是哪種職業？(點擊選擇)</label>
+                        <div id="class-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                            <!-- JS 會動態生成按鈕 -->
+                        </div>
+                    </div>
+
+                    <!-- 底部按鈕 -->
+                    <div class="flex gap-4 mt-6 mb-8">
+                        <button onclick="switchScreen('screen-intro')" class="bg-stone-700 hover:bg-stone-600 text-white font-bold py-3 px-4 border-b-4 border-stone-900 rounded-sm w-1/4 flex items-center justify-center min-h-[50px]">
+                            <i data-lucide="chevron-left" class="w-6 h-6"></i>
+                        </button>
+                        <button onclick="handleSubmitLog()" class="bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-6 border-b-4 border-green-800 active:border-b-0 active:mt-1 transition-all w-full flex items-center justify-center gap-2 touch-manipulation min-h-[50px]">
+                            <i data-lucide="save" class="w-6 h-6"></i> 記錄並上傳
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 5. 獎勵畫面 (Reward Screen) -->
+        <div id="screen-reward" class="screen flex-col items-center w-full max-w-lg">
+            <div class="bg-stone-800 border-4 border-stone-600 shadow-[8px_8px_0_0_rgba(0,0,0,0.5)] p-4 md:p-6 w-full relative text-center animate-bounce-in">
+                <h2 class="text-yellow-400 text-2xl font-bold mb-4">觀察成功！獲得道具！</h2>
+                <div class="flex justify-center mb-6">
+                    <div class="bg-stone-900 p-6 border-4 border-yellow-500 rounded-lg animate-pulse">
+                        <div class="text-yellow-500 mb-2 flex justify-center" id="reward-icon-container">
+                            <!-- Icon 會動態插入 -->
+                        </div>
+                        <div id="reward-name" class="text-xl font-bold text-white"></div>
+                    </div>
+                </div>
+                <p id="reward-desc" class="text-stone-400 mb-8"></p>
+                <button onclick="nextStepAfterReward()" class="bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-6 border-b-4 border-green-800 active:border-b-0 active:mt-1 transition-all w-full flex items-center justify-center gap-2 touch-manipulation">
+                    收入背包並繼續 (<span id="reward-progress"></span>/7)
+                </button>
+            </div>
+        </div>
+
+        <!-- 6. 總結畫面 (Summary Screen) -->
+        <div id="screen-summary" class="screen flex-col items-center w-full max-w-5xl overflow-x-auto">
+            <div class="bg-stone-800 border-4 border-stone-600 shadow-[8px_8px_0_0_rgba(0,0,0,0.5)] p-4 md:p-6 w-full relative min-w-[600px]">
+                <div class="text-center mb-4">
+                    <i data-lucide="star" class="w-12 h-12 text-yellow-400 mx-auto mb-2 animate-spin-slow"></i>
+                    <h2 class="text-2xl font-bold text-green-400">任務大成功！</h2>
+                    <p class="text-stone-300 text-sm">請將此畫面截圖傳送給社長。</p>
+                </div>
+
+                <div class="space-y-6">
+                    <!-- 自我觀察表 -->
+                    <div class="bg-stone-800 border-2 border-stone-600 p-3">
+                        <h3 class="text-yellow-400 font-bold mb-2 flex items-center gap-2 text-sm">
+                            <i data-lucide="user" class="w-4 h-4"></i> 自我掃描報告 - <span id="summary-detective-name"></span>
+                        </h3>
+                        <table class="w-full border-collapse table-fixed">
+                            <thead>
+                                <tr>
+                                    <th class="bg-stone-700 text-yellow-400 font-bold p-2 border border-stone-600 text-center w-1/2">我的優點</th>
+                                    <th class="bg-stone-700 text-yellow-400 font-bold p-2 border border-stone-600 text-center w-1/2">我的成長區</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td id="summary-self-strength" class="bg-stone-900 border border-stone-700 p-2 text-sm text-stone-300 align-top"></td>
+                                    <td id="summary-self-weakness" class="bg-stone-900 border border-stone-700 p-2 text-sm text-stone-300 align-top"></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- 隊友觀察表 -->
+                    <div class="bg-stone-900 border-2 border-stone-700">
+                        <div class="bg-stone-800 p-2 border-b border-stone-700 flex justify-between items-center">
+                            <h3 class="text-purple-400 font-bold flex items-center gap-2 text-sm">
+                                <i data-lucide="clipboard-list" class="w-4 h-4"></i> 隊友觀察紀錄表
+                            </h3>
+                            <span class="text-stone-500 text-xs"><span id="summary-log-count"></span> 筆資料</span>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full border-collapse min-w-[700px]">
+                                <thead>
+                                    <tr>
+                                        <th class="bg-stone-700 text-yellow-400 font-bold p-2 border border-stone-600 text-center w-28">姓名</th>
+                                        <th class="bg-stone-700 text-yellow-400 font-bold p-2 border border-stone-600 text-center w-28">配對職業</th>
+                                        <th class="bg-stone-700 text-yellow-400 font-bold p-2 border border-stone-600 text-center">優點</th>
+                                        <th class="bg-stone-700 text-yellow-400 font-bold p-2 border border-stone-600 text-center">缺點</th>
+                                        <th class="bg-stone-700 text-yellow-400 font-bold p-2 border border-stone-600 text-center">建議</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="summary-logs-body">
+                                    <!-- JS 生成 -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- 背包 -->
+                    <div class="bg-stone-900 p-3 border-2 border-stone-700">
+                        <h3 class="text-yellow-400 font-bold mb-2 text-xs">SEL 道具背包</h3>
+                        <div id="summary-inventory" class="flex flex-wrap gap-2">
+                            <!-- JS 生成 -->
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-8 mb-4 flex justify-center">
+                    <button onclick="alert('系統模擬：正在截圖... 圖片已保存！請將圖片傳送給社長。')" class="bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-8 border-b-4 border-green-800 active:border-b-0 active:mt-1 transition-all flex items-center justify-center gap-2 touch-manipulation min-h-[60px] text-lg w-auto animate-pulse">
+                        <i data-lucide="camera" class="w-7 h-7"></i> 截圖並傳送給社長
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- JavaScript 邏輯 -->
+    <script>
+        // --- 1. 資料庫 ---
+        const classes = [
+            { id: 'warrior', name: '鑽石戰士', desc: '勇敢、保護他人' },
+            { id: 'mage', name: '紅石法師', desc: '聰明、邏輯強' },
+            { id: 'archer', name: '骷髏射手', desc: '專注、目標明確' },
+            { id: 'cleric', name: '金蘋果牧師', desc: '溫柔、善解人意' },
+            { id: 'thief', name: '終界刺客', desc: '敏捷、觀察力強' },
+            { id: 'paladin', name: '鐵巨人騎士', desc: '正義、堅持原則' },
+            { id: 'bard', name: '音符盒詩人', desc: '幽默、善於溝通' },
+            { id: 'druid', name: '叢林守護者', desc: '平和、喜愛自然' },
+            { id: 'alchemist', name: '藥水煉金師', desc: '創意、喜歡實驗' },
+            { id: 'builder', name: '基岩建築師', desc: '穩重、規劃能力' },
+        ];
+
+        const selItems = [
+            { name: '同理心透鏡', icon: 'camera', desc: '能看見別人內心感受的神奇鏡片。' },
+            { name: '耐心之盾', icon: 'shield', desc: '抵擋衝動，學會等待的盾牌。' },
+            { name: '善良金蘋果', icon: 'heart', desc: '恢復友誼值的美味果實。' },
+            { name: '勇氣火把', icon: 'zap', desc: '照亮未知，勇於嘗試的光芒。' },
+            { name: '合作地圖', icon: 'map', desc: '指引團隊方向的必備工具。' },
+            { name: '反思之書', icon: 'book', desc: '記錄錯誤並從中學習的筆記。' },
+            { name: '情緒鑰匙', icon: 'key', desc: '解開解鎖他人心房的關鍵。' },
+        ];
+
+        const forbiddenWords = ['笨', '白癡', '智障', '去死', '討厭', '豬', '醜', '爛', '廢', '混蛋'];
+        const TARGET_COUNT = 7;
+
+        // --- 2. 狀態 (State) ---
+        let state = {
+            detectiveName: '',
+            selfData: { strength: '', weakness: '' },
+            logs: [],
+            inventory: [],
+            currentTeammate: { name: '', assignedClass: null, strength: '', shortcoming: '', suggestion: '' }
+        };
+
+        // --- 3. 初始化 ---
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            renderClassGrid();
+        });
+
+        // --- 4. 畫面切換 (Navigation) ---
+        function switchScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            // 更新 Icon
+            lucide.createIcons();
+        }
+
+        function showError(containerId, textId, msg) {
+            const container = document.getElementById(containerId);
+            const text = document.getElementById(textId);
+            text.innerText = msg;
+            container.classList.remove('hidden');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function hideError(containerId) {
+            document.getElementById(containerId).classList.add('hidden');
+        }
+
+        // --- 5. 邏輯函數 ---
+
+        // 登入
+        function handleNameSubmit() {
+            const input = document.getElementById('input-raw-name');
+            const rawName = input.value.trim();
+            
+            if (!rawName) return;
+
+            let processedName = rawName;
+            const isChinese = /[\u4e00-\u9fa5]/.test(processedName);
+            if (isChinese && processedName.length >= 2) {
+                processedName = processedName.length === 2 ? processedName.substring(1) : processedName.substring(1);
+            }
+            state.detectiveName = `${processedName}偵探`;
+            
+            // 更新顯示名稱
+            document.getElementById('display-detective-name-1').innerText = state.detectiveName;
+            document.getElementById('display-detective-name-2').innerText = state.detectiveName;
+            document.getElementById('summary-detective-name').innerText = state.detectiveName;
+
+            switchScreen('screen-self-scan');
+        }
+
+        // 自我掃描提交
+        function handleSelfSubmit() {
+            hideError('error-msg-self');
+            const strength = document.getElementById('input-self-strength').value;
+            const weakness = document.getElementById('input-self-weakness').value;
+
+            if (!strength || !weakness) {
+                showError('error-msg-self', 'error-text-self', '請完整填寫你的自我觀察報告！');
+                return;
+            }
+            if (strength.length < 5 || weakness.length < 5) {
+                showError('error-msg-self', 'error-text-self', '請寫具體一點 (至少 5 個字)。');
+                return;
+            }
+
+            state.selfData = { strength, weakness };
+            switchScreen('screen-intro');
+        }
+
+        function startGame() {
+            updateGameUI();
+            switchScreen('screen-game');
+        }
+
+        // 渲染職業選擇網格
+        function renderClassGrid() {
+            const grid = document.getElementById('class-grid');
+            grid.innerHTML = '';
+            classes.forEach(cls => {
+                const btn = document.createElement('button');
+                btn.className = `class-btn p-2 text-xs border-2 text-center transition-all min-h-[80px] flex flex-col justify-center items-center bg-stone-700 border-stone-800 hover:bg-stone-600 text-stone-300`;
+                btn.id = `btn-class-${cls.id}`;
+                btn.onclick = () => selectClass(cls);
+                btn.innerHTML = `
+                    <div class="font-bold mb-1 text-sm">${cls.name}</div>
+                    <div class="opacity-75 text-[10px] leading-tight">${cls.desc}</div>
+                `;
+                grid.appendChild(btn);
+            });
+        }
+
+        function selectClass(cls) {
+            state.currentTeammate.assignedClass = cls;
+            
+            // 更新 UI 狀態
+            document.querySelectorAll('.class-btn').forEach(btn => {
+                btn.className = `class-btn p-2 text-xs border-2 text-center transition-all min-h-[80px] flex flex-col justify-center items-center bg-stone-700 border-stone-800 hover:bg-stone-600 text-stone-300`;
+            });
+            
+            const activeBtn = document.getElementById(`btn-class-${cls.id}`);
+            activeBtn.className = `class-btn p-2 text-xs border-2 text-center transition-all min-h-[80px] flex flex-col justify-center items-center bg-purple-600 border-white scale-105 shadow-lg text-white`;
+        }
+
+        // 提交隊友觀察
+        function handleSubmitLog() {
+            hideError('error-msg-game');
+            const name = document.getElementById('input-tm-name').value;
+            const strength = document.getElementById('input-tm-strength').value;
+            const shortcoming = document.getElementById('input-tm-shortcoming').value;
+            const suggestion = document.getElementById('input-tm-suggestion').value;
+            const assignedClass = state.currentTeammate.assignedClass;
+
+            // 1. 檢查完整性
+            if (!name || !assignedClass || !strength || !shortcoming || !suggestion) {
+                showError('error-msg-game', 'error-text-game', '資料不完整！請填寫姓名、選擇職業，並完成所有觀察。');
+                return;
+            }
+
+            // 2. 檢查長度
+            if (strength.length < 3 || shortcoming.length < 3 || suggestion.length < 3) {
+                showError('error-msg-game', 'error-text-game', '觀察紀錄太短了！請至少寫 3 個字以上。');
+                return;
+            }
+
+            // 3. 檢查不當詞彙
+            const combinedText = `${name}${strength}${shortcoming}${suggestion}`;
+            const foundBadWord = forbiddenWords.find(word => combinedText.includes(word));
+            if (foundBadWord) {
+                showError('error-msg-game', 'error-text-game', `警告：偵測到不當詞彙「${foundBadWord}」。請修正用語。`);
+                return;
+            }
+
+            // 儲存
+            state.logs.push({ name, assignedClass, strength, shortcoming, suggestion });
+            
+            // 獎勵邏輯
+            const rewardIndex = (state.logs.length - 1) % selItems.length;
+            const rewardItem = selItems[rewardIndex];
+            state.inventory.push(rewardItem);
+
+            // 顯示獎勵畫面
+            showRewardScreen(rewardItem);
+        }
+
+        function showRewardScreen(item) {
+            document.getElementById('reward-icon-container').innerHTML = `<i data-lucide="${item.icon}" class="w-10 h-10"></i>`;
+            document.getElementById('reward-name').innerText = item.name;
+            document.getElementById('reward-desc').innerText = item.desc;
+            document.getElementById('reward-progress').innerText = state.logs.length;
+            switchScreen('screen-reward');
+        }
+
+        function nextStepAfterReward() {
+            // 清空輸入
+            document.getElementById('input-tm-name').value = '';
+            document.getElementById('input-tm-strength').value = '';
+            document.getElementById('input-tm-shortcoming').value = '';
+            document.getElementById('input-tm-suggestion').value = '';
+            state.currentTeammate = { name: '', assignedClass: null, strength: '', shortcoming: '', suggestion: '' };
+            renderClassGrid(); // 重置按鈕樣式
+
+            if (state.logs.length >= TARGET_COUNT) {
+                renderSummary();
+                switchScreen('screen-summary');
+            } else {
+                updateGameUI();
+                switchScreen('screen-game');
+            }
+        }
+
+        function updateGameUI() {
+            document.getElementById('log-count').innerText = state.logs.length;
+            document.getElementById('current-index').innerText = state.logs.length + 1;
+        }
+
+        // 渲染總結頁面
+        function renderSummary() {
+            // 自我掃描
+            document.getElementById('summary-self-strength').innerText = state.selfData.strength;
+            document.getElementById('summary-self-weakness').innerText = state.selfData.weakness;
+            document.getElementById('summary-log-count').innerText = state.logs.length;
+
+            // 隊友列表
+            const tbody = document.getElementById('summary-logs-body');
+            tbody.innerHTML = '';
+            state.logs.forEach(log => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="bg-stone-900 border border-stone-700 p-2 text-sm text-white font-bold text-center">${log.name}</td>
+                    <td class="bg-stone-900 border border-stone-700 p-2 text-sm text-purple-300 text-center font-bold">${log.assignedClass.name}</td>
+                    <td class="bg-stone-900 border border-stone-700 p-2 text-sm text-blue-200">${log.strength}</td>
+                    <td class="bg-stone-900 border border-stone-700 p-2 text-sm text-orange-200">${log.shortcoming}</td>
+                    <td class="bg-stone-900 border border-stone-700 p-2 text-sm text-green-200">${log.suggestion}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            // 背包
+            const invContainer = document.getElementById('summary-inventory');
+            invContainer.innerHTML = '';
+            state.inventory.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'text-xs bg-stone-800 px-2 py-1 rounded border border-stone-600 flex items-center gap-1 text-stone-300';
+                div.innerHTML = `<i data-lucide="${item.icon}" class="w-3 h-3"></i> ${item.name}`;
+                invContainer.appendChild(div);
+            });
+            
+            lucide.createIcons();
+        }
+
+    </script>
+</body>
+</html>
