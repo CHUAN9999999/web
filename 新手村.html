@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SEL偵探：新手村大冒險</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #0f172a;
+            color: white;
+            overflow-x: hidden;
+            overflow-y: auto;
+        }
+        /* 優化捲軸樣式 */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+
+        .pixel-btn {
+            image-rendering: pixelated;
+            border-bottom: 6px solid rgba(0,0,0,0.3);
+            transition: all 0.1s;
+        }
+        .pixel-btn:active {
+            transform: translateY(4px);
+            border-bottom-width: 2px;
+        }
+        
+        /* 大家來找碴點擊區域優化 */
+        .clue-marker {
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 2px solid transparent;
+            z-index: 50;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+            transform: translate(-50%, -50%); /* 確保座標點為中心 */
+        }
+        .clue-marker:hover {
+            background: rgba(251, 191, 36, 0.2);
+            border: 2px dashed rgba(251, 191, 36, 0.5);
+            border-radius: 12px;
+        }
+        .found-marker {
+            background: rgba(34, 197, 94, 0.3) !important;
+            border: 3px solid #4ade80 !important;
+            border-radius: 12px;
+        }
+        
+        /* 動態效果庫 */
+        @keyframes pixel-shiver {
+            0% { transform: translate(0, 0); }
+            25% { transform: translate(1px, -1px); }
+            50% { transform: translate(-1px, 1px); }
+            75% { transform: translate(1px, 1px); }
+            100% { transform: translate(0, 0); }
+        }
+        .animate-shiver { animation: pixel-shiver 0.2s infinite; }
+
+        @keyframes pixel-float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+        .animate-float { animation: pixel-float 2s ease-in-out infinite; }
+
+        @keyframes pixel-sweat {
+            0% { transform: translateY(0); opacity: 0; }
+            50% { opacity: 1; }
+            100% { transform: translateY(15px); opacity: 0; }
+        }
+        .animate-sweat { animation: pixel-sweat 1.5s infinite; }
+
+        @keyframes pixel-eye-move {
+            0%, 100% { transform: translateX(0); }
+            50% { transform: translateX(5px); }
+        }
+        .animate-eye { animation: pixel-eye-move 3s infinite; }
+
+        @keyframes portal-spin {
+            from { transform: rotate(0deg) scale(1); }
+            50% { transform: rotate(180deg) scale(1.1); }
+            to { transform: rotate(360deg) scale(1); }
+        }
+        .animate-portal { transform-origin: center; animation: portal-spin 10s linear infinite; }
+
+        .cloud {
+            position: absolute;
+            background: white;
+            height: 40px; width: 120px;
+            opacity: 0.1; z-index: 0;
+            animation: moveClouds 60s linear infinite;
+        }
+        @keyframes moveClouds { from { transform: translateX(-200px); } to { transform: translateX(120vw); } }
+        .pixel-bg-grid { background-image: radial-gradient(#1e293b 1px, transparent 1px); background-size: 20px 20px; }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-start min-h-screen pixel-bg-grid p-4 pt-16 sm:pt-24">
+
+    <!-- 背景裝飾 -->
+    <div class="cloud" style="top: 10%; animation-duration: 80s;"></div>
+    <div class="cloud" style="top: 25%; animation-duration: 120s; width: 200px;"></div>
+
+    <!-- HUD 狀態欄 -->
+    <div id="hud" class="fixed top-0 left-0 right-0 p-3 sm:p-4 flex justify-between items-center z-[100] hidden bg-slate-900/90 backdrop-blur-md border-b-2 border-slate-700 shadow-2xl">
+        <div class="bg-black/60 border-2 border-slate-600 p-2 rounded flex gap-4">
+            <div class="flex items-center gap-2">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3m-3-3l-4-4"/></svg>
+                <span class="font-mono text-lg text-yellow-400" id="key-count">0/3</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                <span class="font-mono text-lg text-cyan-400" id="eye-count">0/3</span>
+            </div>
+        </div>
+        <div class="bg-black/60 border-2 border-slate-600 p-2 rounded flex items-center gap-2 text-red-400">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" class="animate-pulse"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+            <span class="font-black text-[10px] uppercase tracking-widest hidden sm:inline">動態觀察模式</span>
+        </div>
+    </div>
+
+    <!-- 遊戲容器 -->
+    <div id="game-container" class="relative z-10 w-full max-w-6xl mx-auto">
+        
+        <!-- 開始畫面 -->
+        <div id="screen-start" class="text-center space-y-8 animate-in py-10">
+            <div class="space-y-4">
+                <div class="inline-block bg-yellow-400 text-black px-3 py-1 font-black text-xs uppercase tracking-tighter mb-2 shadow-lg">SEL Detective Mission</div>
+                <h1 class="text-4xl sm:text-6xl font-black text-yellow-400 drop-shadow-[0_5px_0_rgba(0,0,0,0.6)] italic uppercase tracking-tighter">
+                    SEL 新手村<br><span class="text-2xl sm:text-4xl text-white tracking-widest">情緒偵察特攻隊</span>
+                </h1>
+                <p class="text-slate-400 text-base max-w-lg mx-auto leading-relaxed px-4">仔細觀察居民的動態，只有讀懂他們內心的情緒，才能收集到修復凝聚力的碎片！</p>
+            </div>
+            <button onclick="startGame()" class="pixel-btn bg-green-600 hover:bg-green-500 text-white px-12 py-5 text-2xl font-black rounded uppercase border-b-8 border-green-900 active:border-b-0 transition-all shadow-2xl">開始偵察任務</button>
+        </div>
+
+        <!-- 探索畫面 -->
+        <div id="screen-explore" class="hidden animate-in py-6">
+            <div class="text-center mb-10 px-4">
+                <h2 class="text-xl sm:text-3xl font-black bg-black/70 inline-block px-10 py-4 rounded border-4 border-slate-700 shadow-2xl">選擇一位受困的居民</h2>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-6 sm:gap-10 px-2" id="npc-grid"></div>
+        </div>
+
+        <!-- 互動/找碴畫面 -->
+        <div id="screen-interact" class="hidden flex flex-col lg:flex-row gap-8 w-full animate-in">
+            <!-- 找碴區 -->
+            <div class="flex-[1.5] bg-slate-800 rounded-lg border-4 sm:border-8 border-slate-700 relative overflow-hidden flex flex-col shadow-2xl min-h-[480px]">
+                <div class="p-3 bg-slate-900 border-b-4 border-slate-700 flex justify-between items-center z-50 shadow-md">
+                    <span class="font-black text-xl text-yellow-400 uppercase tracking-tighter">偵察現場</span>
+                    <span class="bg-black px-4 py-1 rounded font-mono text-green-400 border border-green-900/50 text-sm shadow-inner" id="clue-progress">找到: 0 / 2</span>
+                </div>
+                
+                <div class="flex-1 relative bg-slate-900 m-2 rounded overflow-hidden flex items-center justify-center" id="interaction-scene">
+                    <!-- 對齊優化：強制比例容器 -->
+                    <div id="discovery-area" class="relative" style="width: 400px; height: 400px;">
+                        <div id="svg-container" class="absolute inset-0"></div>
+                        <div id="clue-overlay" class="absolute inset-0 z-[60]"></div>
+                    </div>
+                </div>
+                <div class="p-3 bg-black/40 text-[11px] text-yellow-500 text-center uppercase font-bold tracking-[0.2em] animate-pulse">注意！點擊圖片中正在「變動」或「發抖」的位置</div>
+            </div>
+
+            <!-- 對話區 -->
+            <div class="flex-1 flex flex-col gap-5 min-w-[340px]">
+                <div class="bg-slate-700 p-5 sm:p-8 rounded-lg border-4 sm:border-8 border-slate-600 flex flex-col shadow-2xl flex-1">
+                    <div class="flex items-center gap-5 mb-5 pb-4 border-b-4 border-slate-800">
+                        <div id="npc-avatar-small" class="w-14 h-14 bg-indigo-900 rounded border-2 border-black flex items-center justify-center p-1 shadow-inner"></div>
+                        <h3 class="font-black text-2xl text-white" id="current-npc-name">居民</h3>
+                    </div>
+                    
+                    <div id="dialogue-box" class="min-h-[100px] max-h-[160px] bg-black/60 p-5 rounded font-mono text-base leading-relaxed overflow-y-auto mb-5 border-4 border-slate-800 text-cyan-50 shadow-inner"></div>
+                    
+                    <div id="input-area" class="space-y-4 hidden">
+                        <!-- 鷹架提示區 -->
+                        <div class="bg-indigo-950/80 border-2 border-indigo-400 p-3 rounded text-[12px] leading-relaxed flex items-start gap-3 shadow-lg">
+                            <span class="bg-indigo-400 text-black px-1.5 py-0.5 rounded font-black shrink-0 shadow-sm">偵探建議</span>
+                            <span id="dialogue-tip" class="text-indigo-100 font-bold italic"></span>
+                        </div>
+
+                        <textarea id="reflection-text" class="w-full bg-slate-900 border-2 border-slate-800 rounded p-4 text-sm text-white focus:border-cyan-500 outline-none h-32 resize-none font-bold placeholder-slate-700 shadow-inner" placeholder="請輸入至少 5 個字，給予溫暖的建議..."></textarea>
+                        <button onclick="handleDialogueSubmit()" class="pixel-btn w-full bg-cyan-600 hover:bg-cyan-500 p-4 rounded font-black text-xl flex items-center justify-center gap-2 border-b-4 border-cyan-900 uppercase shadow-lg">提交偵察報告</button>
+                    </div>
+                    
+                    <button id="start-dialogue-btn" onclick="startDialogue()" disabled class="pixel-btn w-full bg-slate-600 p-5 rounded font-black text-xl transition-all border-b-4 border-slate-900 uppercase">搜集情報中...</button>
+                </div>
+                <button onclick="backToExplore()" class="text-slate-500 hover:text-white transition-colors text-[10px] font-black uppercase tracking-widest py-2 self-center bg-slate-900/40 px-4 rounded-full">◀ 返回村莊</button>
+            </div>
+        </div>
+
+        <!-- 勝利畫面 -->
+        <div id="screen-victory" class="hidden text-center py-10 px-4 animate-in">
+            <div class="max-w-2xl mx-auto bg-slate-800 p-14 rounded border-[12px] border-yellow-500 shadow-[0_0_80px_rgba(234,179,8,0.5)]">
+                <h1 class="text-5xl sm:text-6xl font-black text-yellow-400 mb-8 italic uppercase tracking-tighter drop-shadow-lg">Mission Complete!</h1>
+                <p class="text-slate-300 text-xl mb-12 leading-loose font-bold">你用智慧與同理心修復了新手村的凝聚力。<br>班級偵察社以你為榮！</p>
+                <button onclick="location.reload()" class="pixel-btn bg-yellow-500 hover:bg-yellow-400 text-black px-14 py-6 text-2xl font-black rounded uppercase border-b-8 border-yellow-800 shadow-2xl">再次啟航任務</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 訊息彈窗 -->
+    <div id="modal" class="fixed inset-0 bg-black/95 z-[200] hidden flex items-center justify-center p-4">
+        <div class="bg-slate-800 border-[6px] border-slate-700 p-8 sm:p-12 rounded max-w-lg w-full shadow-2xl overflow-y-auto max-h-[90vh]">
+            <div id="modal-icon" class="mb-6 flex justify-center scale-125"></div>
+            <h3 id="modal-title" class="text-3xl font-black mb-6 text-center text-yellow-400 uppercase tracking-tight">標題</h3>
+            <div id="modal-desc" class="text-slate-200 mb-8 text-lg leading-relaxed font-bold">內容</div>
+            <button id="modal-btn" onclick="closeModal()" class="pixel-btn w-full bg-indigo-600 hover:bg-indigo-500 py-5 rounded font-black text-xl border-b-8 border-indigo-900 shadow-xl transition-all">確認</button>
+        </div>
+    </div>
+
+    <script>
+        let inventory = { keys: 0, lenses: 0 };
+        let currentNpc = null;
+        let foundClueIds = [];
+        let dialogueIndex = 0;
+        let completedNpcs = [];
+
+        // NPC 資料庫 - 加大點擊寬度與高度，並微調座標以達到完美對齊
+        const npcs = [
+            {
+                id: 1,
+                name: "憂鬱的小農夫",
+                reward: "lenses",
+                intro: "唉... 我的方塊南瓜都被炸飛了... 那些辛苦都白費了...",
+                svg: `<g transform="translate(50,50)">
+                        <rect x="-70" y="35" width="140" height="30" fill="#166534" /> 
+                        <rect class="animate-float" x="20" y="25" width="10" height="10" fill="#f97316" />
+                        <rect class="animate-float" x="-40" y="20" width="8" height="8" fill="#f97316" style="animation-delay: 0.5s" />
+                        <g class="animate-float" style="animation-duration: 4s">
+                            <rect x="-20" y="-30" width="40" height="40" fill="#fde047" /> 
+                            <rect x="-25" y="10" width="50" height="60" fill="#166534" />
+                            <rect x="-10" y="-18" width="5" height="5" fill="black" /> 
+                            <rect x="5" y="-18" width="5" height="5" fill="black" />
+                            <rect x="-6" y="-5" width="12" height="3" fill="#991b1b" />
+                        </g>
+                        <rect class="animate-shiver" x="30" y="45" width="8" height="25" fill="#78350f" transform="rotate(75)" /> 
+                      </g>`,
+                clues: [
+                    { id: "mouth", label: "憂傷顫抖的嘴角", x: "47%", y: "46%", w: "70px", h: "70px" },
+                    { id: "tool", label: "遺棄在地上的鏟子", x: "58%", y: "74%", w: "120px", h: "100px" }
+                ],
+                questions: [
+                    "你看到我連工具都懶得撿，這代表我現在還有心力去重建南瓜田嗎？",
+                    "用同理心看我，你覺得我現在需要的是『別人幫我種地』還是『有人聽我說話』？"
+                ],
+                tips: [
+                    "觀察小農夫的嘴角與放棄工具的動作。這顯示了一種『喪失動力』的沮喪感。",
+                    "嘗試認可他的努力（如：『我知道你花了很久才種出來，真的辛苦了』），並表達陪伴。"
+                ],
+                successReason: "你成功捕捉到了小農夫在沮喪時「無力感」的動態細節，並給予了真誠的回應。"
+            },
+            {
+                id: 2,
+                name: "焦慮的建築師",
+                reward: "keys",
+                intro: "宴會快開始了... 圖紙到底在哪裡！我快急瘋了！",
+                svg: `<g transform="translate(50,50)">
+                        <rect x="-60" y="25" width="120" height="40" fill="#475569" />
+                        <rect class="animate-sweat" x="-5" y="-35" width="4" height="12" fill="#22d3ee" />
+                        <rect x="-20" y="-40" width="40" height="40" fill="#ffedd5" />
+                        <rect x="-25" y="0" width="50" height="60" fill="#1e3a8a" />
+                        <rect x="-12" y="-22" width="6" height="6" fill="#4338ca" /> 
+                        <rect x="6" y="-22" width="6" height="6" fill="#4338ca" />
+                        <rect class="animate-shiver" x="-35" y="30" width="20" height="20" fill="#ffedd5" />
+                        <rect class="animate-shiver" x="18" y="30" width="20" height="20" fill="#ffedd5" style="animation-delay: 0.1s" />
+                      </g>`,
+                clues: [
+                    { id: "sweat", label: "滴下的焦慮汗水", x: "48%", y: "18%", w: "70px", h: "100px" },
+                    { id: "fists", label: "因壓力顫抖的雙手", x: "36%", y: "68%", w: "160px", h: "100px" }
+                ],
+                questions: [
+                    "當你發現我全身發抖成這樣，你覺得現在教我『畫圖技巧』有幫助嗎？",
+                    "如果要用情緒鑰匙打開我的心，你會建議我現在先做什麼？"
+                ],
+                tips: [
+                    "生理上的緊繃（流汗、發抖）代表他正處於高壓狀態。建議他先停下動作，引導他深呼吸三次。",
+                    "同理回應：『我知道你壓力很大，我們一起深呼吸幾下，等一下我們一起找圖紙。』"
+                ],
+                successReason: "你發現了建築師生理上的極度焦慮，並提供了正確的「先穩定情緒，後解決問題」的建議。"
+            },
+            {
+                id: 4,
+                name: "生氣的鐵匠",
+                reward: "keys",
+                intro: "不要煩我！這塊鐵怎麼打都打不好！走開！",
+                svg: `<g transform="translate(50,50)">
+                        <rect x="-40" y="30" width="80" height="40" fill="#451a03" />
+                        <rect class="animate-sweat" x="30" y="-60" width="10" height="10" fill="#94a3b8" style="animation-direction: reverse;" />
+                        <g class="animate-shiver">
+                            <rect x="-20" y="-35" width="40" height="40" fill="#fdba74" />
+                            <rect x="-30" y="5" width="60" height="60" fill="#78350f" />
+                            <rect x="-15" y="-22" width="10" height="4" fill="black" transform="rotate(25)" /> 
+                            <rect x="5" y="-22" width="10" height="4" fill="black" transform="rotate(-25)" />
+                        </g>
+                        <rect class="animate-shiver" x="45" y="55" width="20" height="10" fill="#94a3b8" />
+                      </g>`,
+                clues: [
+                    { id: "brows", label: "憤怒跳動的眉毛", x: "42%", y: "30%", w: "90px", h: "70px" },
+                    { id: "iron", label: "被打爛丟掉的廢鐵", x: "65%", y: "78%", w: "100px", h: "90px" }
+                ],
+                questions: [
+                    "我對你大聲說話時，你觀察到我正在顫抖，這時候靠近我會發生什麼事？",
+                    "情緒鑰匙告訴我們：面對憤怒的人，現在應該『爭辯誰對』還是『給彼此空間』？"
+                ],
+                tips: [
+                    "憤怒往往伴隨著明顯的眉毛跳動與身體戰慄。這是一個警示信號，代表他需要降溫。",
+                    "嘗試用冷靜的口語說：『我看你現在很困擾，我先不打擾你，等你打累了我再來找你聊天。』"
+                ],
+                successReason: "你辨識出了鐵匠憤怒背後的壓力與挫折信號，並選擇了最明智的冷處理溝通時機。"
+            },
+            {
+                id: 5,
+                name: "恐懼的新手",
+                reward: "lenses",
+                intro: "這裡好黑... 森林裡好像有眼睛在看我... 救救我...",
+                svg: `<g transform="translate(50,50)">
+                        <rect x="-70" y="-70" width="140" height="140" fill="#064e3b" />
+                        <rect class="animate-sweat" x="50" y="-40" width="4" height="4" fill="#fbbf24" style="animation-duration: 1s" />
+                        <g class="animate-shiver" style="animation-duration: 0.1s">
+                            <rect x="-18" y="-35" width="36" height="36" fill="#fef3c7" />
+                            <rect x="-20" y="1" width="40" height="60" fill="#2563eb" />
+                            <rect x="-10" y="-20" width="6" height="6" fill="#1e40af" /> 
+                            <rect x="4" y="-20" width="6" height="6" fill="#1e40af" />
+                            <path class="animate-shiver" d="M -8 -5 L 8 -5" stroke="#ef4444" stroke-width="3" stroke-dasharray="2 2" />
+                        </g>
+                      </g>`,
+                clues: [
+                    { id: "mouth", label: "發抖的牙齒聲", x: "44%", y: "44%", w: "70px", h: "60px" },
+                    { id: "shiver", label: "全身劇烈戰慄", x: "40%", y: "48%", w: "140px", h: "140px" }
+                ],
+                questions: [
+                    "當你看到我全身都在抖，你覺得這時候『嘲笑我很膽小』能幫助我恢復理智嗎？",
+                    "如果你戴上同理心透鏡，你會怎麼做來給我安全感？"
+                ],
+                tips: [
+                    "從那種『全身戰慄』的動態，可以看出他此時的感官非常敏感且脆弱。他需要的是穩定、可靠的聲音。",
+                    "給予具體的承諾：『別怕，我會牽著你的手一起找到出口。』"
+                ],
+                successReason: "你敏銳捕捉到了新手受困恐懼時的生理反應，並提供了他此時最需要的心理安全感。"
+            },
+            {
+                id: 6,
+                name: "害羞的小商販",
+                reward: "keys",
+                intro: "我... 我這有很漂亮的藍寶石... 但你可以不要一直盯著我嗎...",
+                svg: `<g transform="translate(50,50)">
+                        <rect x="-50" y="25" width="100" height="55" fill="#713f12" />
+                        <g class="animate-float" style="animation-duration: 5s">
+                            <rect x="-15" y="-15" width="30" height="30" fill="#fae8ff" />
+                            <rect x="-8" y="-5" width="4" height="4" fill="black" /> 
+                            <rect x="4" y="-5" width="4" height="4" fill="black" />
+                        </g>
+                        <rect class="animate-shiver" x="-45" y="15" width="20" height="10" fill="#fae8ff" />
+                      </g>`,
+                clues: [
+                    { id: "peeking", label: "欲言又止的探頭動作", x: "44%", y: "35%", w: "100px", h: "100px" },
+                    { id: "hand", label: "不安抖動的手部動作", x: "28%", y: "55%", w: "80px", h: "80px" }
+                ],
+                questions: [
+                    "他躲在箱子後面一直探頭探腦，這代表他現在的心態是『開放』還是『防衛』？",
+                    "如果你想跟他買寶石，情緒鑰匙建議你現在應該『大聲喊叫』還是『安靜小聲地詢問』？"
+                ],
+                tips: [
+                    "觀察他這種『探出頭又縮回去』的循環，這反映了社交焦慮中的衝突感。不要給予過多眼神壓力。",
+                    "溝通建議：蹲下來降低視線，用溫和細微的音量對他說：『慢慢來，不急，我很想看你的寶石。』"
+                ],
+                successReason: "你成功察覺了商販害羞不安的動態表現，並學會了如何用正確的距離感來開啟心門。"
+            },
+            {
+                id: 3,
+                name: "孤單的守衛",
+                reward: "lenses",
+                intro: "守護這座傳送門是我的榮譽，但我...好想去廣場跳舞喔...",
+                svg: `<g transform="translate(50,50)">
+                        <rect class="animate-portal" x="-60" y="-60" width="120" height="120" fill="#2e1065" opacity="0.8" />
+                        <rect class="animate-portal" x="-50" y="-50" width="100" height="100" fill="#4c1d95" style="animation-direction: reverse; animation-duration: 15s" />
+                        <rect x="-25" y="-40" width="50" height="50" fill="#64748b" /> 
+                        <rect x="-25" y="10" width="50" height="60" fill="#1e293b" />
+                        <rect x="-18" y="-20" width="36" height="10" fill="black" />
+                        <rect class="animate-eye" x="0" y="-18" width="4" height="4" fill="#ef4444" />
+                        <ellipse class="animate-float" cx="-40" cy="85" rx="35" ry="12" fill="black" opacity="0.4" />
+                      </g>`,
+                clues: [
+                    { id: "eyes", label: "飄向廣場的眼神", x: "50%", y: "36%", w: "70px", h: "70px" },
+                    { id: "shadow", label: "沉重空虛的黑影", x: "26%", y: "78%", w: "130px", h: "100px" }
+                ],
+                questions: [
+                    "雖然守衛守在這裡，但他的眼睛一直在瞄遠方，他在想什麼？",
+                    "如果你是路過的偵探，你覺得現在對他說什麼話，能讓他覺得寂寞感減少一點點？"
+                ],
+                tips: [
+                    "換位思考：如果你是那個必須在別人聚會時工作的人。試著肯定他這種『犧牲自己，成就大家』的行為。",
+                    "同理心回應：『辛苦了，謝謝你守著這裡，讓我們大家能安心聚會，你是最棒的。』"
+                ],
+                successReason: "你從守衛飄忽的視線中讀出了他的落寞，並提供了他極需的認可與同理。"
+            }
+        ];
+
+        function startGame() {
+            document.getElementById('screen-start').classList.add('hidden');
+            document.getElementById('screen-explore').classList.remove('hidden');
+            document.getElementById('hud').classList.remove('hidden');
+            renderNpcGrid();
+        }
+
+        function renderNpcGrid() {
+            const grid = document.getElementById('npc-grid');
+            grid.innerHTML = '';
+            npcs.forEach(npc => {
+                const isComp = completedNpcs.includes(npc.id);
+                const isFull = (npc.reward==='keys' && inventory.keys>=3) || (npc.reward==='lenses' && inventory.lenses>=3);
+                const btn = document.createElement('button');
+                btn.className = `pixel-btn bg-slate-800 p-6 rounded border-4 border-slate-700 flex flex-col items-center group transition-all ${isComp||isFull?'opacity-30 grayscale pointer-events-none':'hover:bg-slate-700 hover:border-yellow-500 hover:scale-105 shadow-xl'}`;
+                btn.onclick = () => selectNpc(npc);
+                btn.innerHTML = `<div class="w-24 h-24 bg-indigo-950 rounded mb-4 flex items-center justify-center border-b-4 border-black group-hover:bg-indigo-900 overflow-hidden shadow-inner"><svg width="100%" height="100%" viewBox="0 0 100 100">${npc.svg}</svg></div><span class="font-black text-lg">${npc.name}</span>`;
+                grid.appendChild(btn);
+            });
+        }
+
+        function selectNpc(npc) {
+            currentNpc = npc; foundClueIds = []; dialogueIndex = 0;
+            document.getElementById('screen-explore').classList.add('hidden');
+            document.getElementById('screen-interact').classList.remove('hidden');
+            document.getElementById('current-npc-name').innerText = npc.name;
+            document.getElementById('dialogue-box').innerHTML = `<div class="p-2 border-l-4 border-yellow-500 italic text-sm text-yellow-100 bg-yellow-900/20">「${npc.intro}」</div>`;
+            document.getElementById('clue-progress').innerText = `找到: 0 / ${npc.clues.length}`;
+            document.getElementById('start-dialogue-btn').disabled = true;
+            document.getElementById('start-dialogue-btn').className = "pixel-btn w-full bg-slate-600 p-4 rounded font-black text-lg border-b-4 border-slate-900 uppercase";
+            document.getElementById('start-dialogue-btn').innerText = "觀察中...";
+            document.getElementById('input-area').classList.add('hidden');
+            document.getElementById('start-dialogue-btn').classList.remove('hidden');
+            document.getElementById('npc-avatar-small').innerHTML = `<svg width="100%" height="100%" viewBox="0 0 100 100">${npc.svg}</svg>`;
+            
+            // 重要：點擊層對齊校準
+            const svgContainer = document.getElementById('svg-container');
+            svgContainer.innerHTML = `<svg width="400" height="400" viewBox="0 0 150 150">${npc.svg}</svg>`;
+            
+            const overlay = document.getElementById('clue-overlay');
+            overlay.innerHTML = '';
+            npc.clues.forEach(clue => {
+                const div = document.createElement('div');
+                div.className = 'absolute clue-marker text-transparent';
+                div.style.left = clue.x; 
+                div.style.top = clue.y;
+                div.style.width = clue.w; 
+                div.style.height = clue.h;
+                div.onclick = (e) => { e.stopPropagation(); findClue(clue, div); };
+                overlay.appendChild(div);
+            });
+            window.scrollTo(0,0);
+        }
+
+        function findClue(clue, el) {
+            if (foundClueIds.includes(clue.id)) return;
+            foundClueIds.push(clue.id);
+            el.classList.add('found-marker');
+            const tag = document.createElement('div');
+            tag.className = 'absolute bg-green-500 text-black text-[10px] font-black px-2 py-1 rounded shadow-lg animate-bounce z-[200] uppercase tracking-tighter whitespace-nowrap';
+            tag.style.left = "50%";
+            tag.style.top = "-25px";
+            tag.style.transform = "translateX(-50%)";
+            tag.innerText = `找到了! ${clue.label}`;
+            el.appendChild(tag);
+            
+            document.getElementById('clue-progress').innerText = `找到: ${foundClueIds.length} / ${currentNpc.clues.length}`;
+            if (foundClueIds.length === currentNpc.clues.length) {
+                const btn = document.getElementById('start-dialogue-btn');
+                btn.disabled = false; btn.innerText = "開始對話引導";
+                btn.className = "pixel-btn w-full bg-green-600 hover:bg-green-500 p-4 rounded font-black text-lg border-b-4 border-green-900 uppercase animate-pulse shadow-lg";
+            }
+        }
+
+        function startDialogue() {
+            dialogueIndex = 1;
+            document.getElementById('start-dialogue-btn').classList.add('hidden');
+            document.getElementById('input-area').classList.remove('hidden');
+            showNextQuestion();
+        }
+
+        function showNextQuestion() {
+            const q = currentNpc.questions[dialogueIndex - 1];
+            const tip = currentNpc.tips[dialogueIndex - 1];
+            document.getElementById('dialogue-box').innerHTML = `<div class="text-cyan-400 font-black mb-2 uppercase text-[10px] underline tracking-widest">偵察員問題 ${dialogueIndex}:</div><p class="text-white font-bold leading-relaxed text-sm">「${q}」</p>`;
+            document.getElementById('dialogue-tip').innerText = tip;
+            document.getElementById('reflection-text').value = '';
+            document.getElementById('dialogue-box').scrollTop = 0;
+        }
+
+        function handleDialogueSubmit() {
+            const input = document.getElementById('reflection-text').value.trim();
+            const badWords = ["屁", "爛", "不知道", "沒差", "隨便", "死", "垃圾", "笨", "白癡", "廢物", "喔", "呵呵"];
+            const isTooShort = input.length < 5;
+            const hasBadWord = badWords.some(word => input.includes(word));
+            const is敷衍 = ["...", "123", "測試", "你好", "好的", "哈哈", "喔喔", "喔", "恩", "還好"].includes(input);
+
+            if (!input || isTooShort || hasBadWord || is敷衍) {
+                let msg = "偵查報告必須更詳盡喔（至少 5 個字）！請嘗試觀察對方的處境並給予具體的回應。";
+                if (hasBadWord) msg = "報告警報：偵查員應使用充滿同理心且尊重的言詞。請重新撰寫分析。";
+                showSimpleModal("偵察社提醒", msg);
+                return;
+            }
+            
+            if (dialogueIndex < currentNpc.questions.length) {
+                dialogueIndex++;
+                showNextQuestion();
+            } else {
+                showSuccessReason();
+            }
+        }
+
+        function showSuccessReason() {
+            const modal = document.getElementById('modal');
+            document.getElementById('modal-title').innerText = "專業偵察總結";
+            document.getElementById('modal-desc').innerHTML = `<div class="bg-indigo-950 p-6 border-l-4 border-indigo-400 font-bold leading-relaxed shadow-inner text-sm italic text-indigo-100">${currentNpc.successReason}</div>`;
+            document.getElementById('modal-icon').innerHTML = `<svg width="70" height="70" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="3" class="drop-shadow-lg"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`;
+            document.getElementById('modal-btn').innerText = "領取特殊道具";
+            document.getElementById('modal-btn').onclick = () => finishNpcTask();
+            modal.classList.remove('hidden');
+        }
+
+        function finishNpcTask() {
+            const isKey = currentNpc.reward === 'keys';
+            if (isKey) inventory.keys++; else inventory.lenses++;
+            document.getElementById('modal-title').innerText = "獲得戰利品！";
+            document.getElementById('modal-desc').innerHTML = `<div class="text-center space-y-3"><p class="text-2xl font-black ${isKey?'text-yellow-400':'text-cyan-400'} shadow-sm">${isKey?'情緒鑰匙':'同理心透鏡'} +1</p><p class="text-slate-400 font-bold text-xs leading-relaxed">你的深度觀察修復了這塊受損的凝聚力碎片！</p></div>`;
+            document.getElementById('modal-icon').innerHTML = isKey ? '<svg width="70" height="70" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="3"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3m-3-3l-4-4"/></svg>' : '<svg width="70" height="70" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="3"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+            document.getElementById('modal-btn').innerText = "繼續巡邏村莊";
+            document.getElementById('modal-btn').onclick = () => {
+                closeModal(); completedNpcs.push(currentNpc.id); updateHud();
+                if (inventory.keys >= 3 && inventory.lenses >= 3) {
+                    setTimeout(() => { document.getElementById('screen-interact').classList.add('hidden'); document.getElementById('screen-victory').classList.remove('hidden'); document.getElementById('hud').classList.add('hidden'); }, 500);
+                } else { backToExplore(); }
+            };
+        }
+
+        function updateHud() {
+            document.getElementById('key-count').innerText = `${inventory.keys}/3`;
+            document.getElementById('eye-count').innerText = `${inventory.lenses}/3`;
+        }
+
+        function backToExplore() {
+            document.getElementById('screen-interact').classList.add('hidden');
+            document.getElementById('screen-explore').classList.remove('hidden');
+            renderNpcGrid(); window.scrollTo(0,0);
+        }
+
+        function showSimpleModal(title, desc) {
+            const modal = document.getElementById('modal');
+            document.getElementById('modal-title').innerText = title;
+            document.getElementById('modal-desc').innerText = desc;
+            document.getElementById('modal-icon').innerHTML = '<svg width="70" height="70" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="3"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>';
+            document.getElementById('modal-btn').innerText = "重新思考報告";
+            document.getElementById('modal-btn').onclick = closeModal;
+            modal.classList.remove('hidden');
+        }
+
+        function closeModal() { document.getElementById('modal').classList.add('hidden'); }
+    </script>
+</body>
+</html>
